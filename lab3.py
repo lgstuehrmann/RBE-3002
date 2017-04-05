@@ -160,6 +160,8 @@ if __name__ == '__main__':
     gplanner_pub = rospy.Publisher('/move_base/DWAPlannerROS/global_plan', Path, None, queue_size=10)
     fullplan_pub = rospy.Publisher('/move_base/NavfnROS/plan', Path, None, queue_size=10)
 
+    initpose_sub = rospy.Subscriber('/initialpose', Pose, getInitPose)
+    goal_sub = rospy.Subscriber('/move_base_simple/goal', Pose, getGoal)
     odom_sub = rospy.Subscriber('/odom', Odometry, readOdom)
     map_sub = rospy.Subscriber('/map', OccupancyGrid, readMap)
     gcostmap_sub = rospy.Subscriber('/move_base/global_costmap/costmap', OccupancyGrid, readGlobalCostmap)
