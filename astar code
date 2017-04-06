@@ -7,20 +7,18 @@ from geometry_msgs.msg import Twist
 from geometry_msgs.msg import PoseStamped
 from nav_msgs.msg import Odometry
 from tf.transformations import euler_from_quaternion
-# Add additional imports for each of the message types used
-#wheel_diam = .07
-#wheel_base = .229
+#Start and Goal are x,y coordinates from poses
 def Astar(start, goal):
 	closedSet = Array()
 	openSet = Array()
 	openSet = ([start])
-	cameFrom = the empty map
+	cameFrom = init_map #the empty map
 	gCost = map with default value of 100
 	gCost[start]=0
 	fCost[start] = heuristic_cost_estimate(start, goal)
 
-	while(openSet is not empty):
-		current = node in openSet with lowest fCost[] value
+	while(openSet != null):
+		current = Ce in openSet with lowest fCost[] value
 
 		if(current = goal):
 			return reconstruct_path(cameFrom, current)
