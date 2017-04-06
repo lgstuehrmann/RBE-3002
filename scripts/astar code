@@ -1,0 +1,81 @@
+#!/usr/bin/env python
+
+import rospy, tf, numpy, math
+from kobuki_msgs.msg import BumperEvent
+from std_msgs.msg import String
+from geometry_msgs.msg import Twist
+from geometry_msgs.msg import PoseStamped
+from nav_msgs.msg import Odometry
+from tf.transformations import euler_from_quaternion
+#Start and Goal are x,y coordinates from poses
+def Astar(start, goal):
+	closedSet = Array()
+	openSet = Array()
+	openSet = ([start])
+	cameFrom = init_map #the empty map
+	gCost = map with default value of 100
+	gCost[start]=0
+	fCost[start] = heuristic_cost_estimate(start, goal)
+
+	while(openSet != null):
+		current = Ce in openSet with lowest fCost[] value
+
+		if(current = goal):
+			return reconstruct_path(cameFrom, current)
+
+		openSet.Remove(current)
+		closedSet.Add(current)
+		
+		for (each neighbor of current):
+			if (neighbor in closedSet):
+				continue
+			tentative_gCost = gCost[current] + dist_between(current, neighbor)
+
+			if neighbor not in openSet:
+				openSet.Add(neighbor)
+			else if tentative_gCost >= gCost[neighbor]:
+				continue
+
+			cameFrom[neighbor] = current
+			gCost[neighbor] = tentative_gCost
+			fcost[neighbor] = gCost[neighbor] + heuristic_cost_estimate(neighbor, goal)
+	return failed
+
+
+
+#Bumper Event Callback function
+def readBumper(msg):
+    print "bumper event logged"
+    if (msg.state == 1):
+        print "bumper pressed"
+        executeTrajectory()
+
+
+def readOdom(msg):
+    global pose
+    try:
+        pose = msg.pose
+    except:
+        print "no thing"
+# This is the program's main function
+if __name__ == '__main__':
+    # Change this node name to include your username
+    rospy.init_node('lgstuehrmann_Lab_2_node')
+
+    # These are global variables. Write "global <variable_name>" in any other function to gain access to these global variables 
+    global pub
+    global pose
+    global odom_tf
+    global odom_list
+   
+    pub = rospy.Publisher('cmd_vel_mux/input/teleop', Twist, None, queue_size=10) # Publisher for commanding robot motion
+    bumper_sub = rospy.Subscriber('/mobile_base/events/bumper', BumperEvent, readBumper, queue_size=1) # Callback function to handle bumper events
+    sub = rospy.Subscriber('/odom', Odometry, readOdom)
+    # Use this object to get the robot's Odometry 
+    odom_list = tf.TransformListener()
+    rospy.sleep(rospy.Duration(1, 0))
+    print "Starting Lab 3"
+    while not rospy.is_shutdown():
+        rospy.spin()
+    print "Lab 3 complete!"
+
