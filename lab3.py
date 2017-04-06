@@ -138,7 +138,7 @@ class map():
         self.explCellsPub.publish(emptymsg)
         self.fronCellsPub.publish(emptymsg)
 
-def getInitPose(msg):
+def readOdom():
     global initPose
     try:
         initPose = msg.pose
@@ -157,24 +157,29 @@ if __name__ == '__main__':
     rospy.init_node('lgstuehrmann_Lab_3_node')
     
     global pub
-    global pose
-    global odom_tf
-    global odom_list
     global initPose
+    global goal
 
-    #Subscribers & 
-
-    cellPub = rospy.Publisher
-    button_sub = rospy.Subscriber('/clicked_point', PointStamped, map.Astar)
+    #Subscribers
+    #button_sub = rospy.Subscriber('/clicked_point', PointStamped, map.Astar)
     #initpose_sub = rospy.Subscriber('/startpose', PoseWithCovarianceStamped, getInitPose)
     #goal_sub = rospy.Subscriber('/goalpose', PoseStamped, getGoal)
 
-    #odom_sub = rospy.Subscriber('/odom', Odometry, readOdom)
+    odom_sub = rospy.Subscriber('/odom', Odometry, readOdom)
 
     # Use this object to get the robot's Odometry 
-    #odom_list = tf.TransformListener()
+    odom_list = tf.TransformListener()
+
     rospy.sleep(rospy.Duration(1, 0))
     rospy.wait_for_service('/goalpose')
+    getGoal = rospy.ServiceProxy('/goalpose', PoseStamped)
+    try:
+        goal = getGoal()
+        print goal
+    except rospy.ServiceException as exc:
+        print("Service did not process request")
+
+
 
     print "Starting Lab 3"
 
