@@ -80,7 +80,23 @@ class map():
         heuristic = sqrt(pow((goal.x-start.x), 2)+pow((goal.y-start.y),2))
         return heuristic
 
-    def getPath(came_from, goal):
+    def getPath(self, came_from, current):
+        if current in came_from:
+            path = self.getPath(came_from, came_from[current])
+            path.append(current)
+            return path
+        else:
+            return[current]
+
+    def cellCoordsToPoints(self, )
+    def pubCells(self, cells, cellPub):
+        msg = GridCells()
+        msg.cell_height = map.map_res
+        msg.cell_width = map.map_res
+        msg.header.frame_id = '/map'
+
+        msg.cells = map.cellCoordsToPts(cells)
+        cellPub.publish(msg)
 
 def getInitPose
     global initPose
@@ -106,6 +122,7 @@ if __name__ == '__main__':
     global odom_list
     global initPose
     #Subscribers & Publishers
+    cellPub = rospy.Publisher
     initpose_sub = rospy.Subscriber('/startpose', Pose, getInitPose)
     goal_sub = rospy.Subscriber('/goalpose', Pose, getGoal)
     odom_sub = rospy.Subscriber('/odom', Odometry, readOdom)
