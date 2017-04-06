@@ -3,12 +3,15 @@
 import rospy, tf, numpy, math, sys
 from sets import Set
 
-from kobuki_msgs.msg import BumperEvent
 from std_msgs.msg import String
-from geometry_msgs.msg import Twist
-from geometry_msgs.msg import PoseStamped
-from nav_msgs.msg import *
+from nav_msgs.msg import MapMetaData
+from std_msgs.msg import Header
+from geometry_msgs.msg import Point
+from nav_msgs.srv import GetMap
+from nav_msgs.srv import GetMapRequest, GetMapResponse
+from nav_msgs.msg import GridCells
 from tf.transformations import euler_from_quaternion
+from __builtin__ import map
 
 class map():
     map = [[]]
@@ -21,8 +24,25 @@ class map():
     threshLow = 20
 
     closedPts = []
+    def __init__(self):
+        self.getMapService = rospy.ServiceProxy('/static_map', GetMap)
+        self.pathCellsPub = rospy.Publisher('/path_cells', GridCells, latch=True)
+        self.explCellsPub = rospy.Publisher('/explored_cells', GridCells, latch=True)
+        self.fronCellsPub = rospy.Publisher('/frontier_cells', GridCells, latch=True)
 
-#takes in current cell, start cell, and goal cell
+    def updateMapMetadata(self, msg):
+        self.map_res = msg.resolution
+        self.map_posList = [msg.origin.position.x, msg.origin.position.y, msg.origin.position.z]
+        self.map_orientList = [msg.origin.orientation.x, msg.origin.orientation.y, msg.origin.orientation.z, msg.origin.orientation.w]
+        self.map_width = msg.map_width
+        self.map_height = msg.map_height
+
+    def getMap(self):
+        request = GetMapRequest()
+        response = self. getMapService.call(request)
+
+        self.updateMapMetadata(response.map.info)
+
     def Astar(self, start, goal):
         closedSet = Set()
         openSet = Set()
@@ -48,7 +68,7 @@ class map():
             for(neighbor, distance in self.getNeighbors(current)):
                 if (neighbor in closedSet):
                     continue
-                self.pub_cells(closedSet, self.expl_cells_pub, cells_as_points=False)
+                self.pub_cells(closedSet, self.explCellsPub, cells_as_points=False)
 
                 tent_gScore = gScore[current] + distance
                 if(neighbor not in openSet) or (tent_gScore < gScore[neighbor]):
@@ -58,15 +78,15 @@ class map():
                     if(neighbor not in openSet):
                         openSet.add(neighbor)
 
+    def checkAdd(cell, delta, neighbors, distances):
+        new_cell = tuple(map(add, cell, delta))
+        if not ((self.map[new_cell[1]] [new_cell[0]]) ==1):
+            neighbors.append(new_cell)
+            distances.append(hypot(*map(sub, (0,0), delta)))
+
     def getNeighbors(cell):
         neighbors = []
         distances = []
-
-        def checkAdd(cell, delta, neighbors, distances):
-            new_cell = tuple(map(add, cell, delta))
-            if not ((self.map[new_cell[1]] [new_cell[0]]) ==1):
-                neighbors.append(new_cell)
-                distances.append(hypot(*map(sub, (0,0), delta)))
 
         checkAdd(cell, (1,0), neighbors, distances)
         checkAdd(cell, (0,1), neighbors, distances)
@@ -88,7 +108,11 @@ class map():
         else:
             return[current]
 
-    def cellCoordsToPoints(self, )
+    def cellCoordsToPoints(self, coords):
+        cellSize = [self.map_res, self.map_res]
+        cellOffset = map(add, self.map_posList[:2], [self.map_res/2, self.map_res/2])
+        return [Point(*(map(add, map(mul, coord, cellSize), cellOffset) + [0]) ) for coord in coords]
+
     def pubCells(self, cells, cellPub):
         msg = GridCells()
         msg.cell_height = map.map_res
@@ -97,6 +121,14 @@ class map():
 
         msg.cells = map.cellCoordsToPts(cells)
         cellPub.publish(msg)
+
+    def clearCells(self):
+        emptymsg = GridCells(cell_width = self.map_res,
+            cell_height = self.map_res,
+            header = Header(frame_id ="/map"))
+        self.pathCellsPub.publish(emptymsg)
+        self.explCellsPub.publish(emptymsg)
+        celf.fronCellsPub.publish(emptymsg)
 
 def getInitPose
     global initPose
