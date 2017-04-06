@@ -4,14 +4,20 @@ import rospy, tf, numpy, math, sys
 from sets import Set
 
 from std_msgs.msg import String
-from nav_msgs.msg import MapMetaData
+from nav_msgs.msg import Odometry, MapMetaData
 from std_msgs.msg import Header
-from geometry_msgs.msg import Point
+from geometry_msgs.msg import Twist, Point, PoseStamped, PoseWithCovarianceStamped, PointStamped
 from nav_msgs.srv import GetMap
 from nav_msgs.srv import GetMapRequest, GetMapResponse
 from nav_msgs.msg import GridCells
 from tf.transformations import euler_from_quaternion
 from __builtin__ import map
+from rospy.rostime import Duration
+
+global initPose
+global goal
+
+
 
 class map():
     map = [[]]
@@ -25,6 +31,8 @@ class map():
 
     closedPts = []
     def __init__(self):
+        self.getInitial = rospy.ServiceProxy('/startpose', getInitPose)
+        self.getGoal = rospy.ServiceProxy('/goalpose', getGoalPose)
         self.getMapService = rospy.ServiceProxy('/static_map', GetMap)
         self.pathCellsPub = rospy.Publisher('/path_cells', GridCells, latch=True)
         self.explCellsPub = rospy.Publisher('/explored_cells', GridCells, latch=True)
@@ -34,12 +42,12 @@ class map():
         self.map_res = msg.resolution
         self.map_posList = [msg.origin.position.x, msg.origin.position.y, msg.origin.position.z]
         self.map_orientList = [msg.origin.orientation.x, msg.origin.orientation.y, msg.origin.orientation.z, msg.origin.orientation.w]
-        self.map_width = msg.map_width
-        self.map_height = msg.map_height
+        self.map_width = msg.width
+        self.map_height = msg.height
 
     def getMap(self):
         request = GetMapRequest()
-        response = self. getMapService.call(request)
+        response = self.getMapService.call(request)
 
         self.updateMapMetadata(response.map.info)
 
@@ -65,7 +73,7 @@ class map():
 
             openSet.remove(current)
             closedSet.add(current)
-            for(neighbor, distance in self.getNeighbors(current)):
+            for neighbor, distance in self.getNeighbors(current):
                 if (neighbor in closedSet):
                     continue
                 self.pub_cells(closedSet, self.explCellsPub, cells_as_points=False)
@@ -128,16 +136,16 @@ class map():
             header = Header(frame_id ="/map"))
         self.pathCellsPub.publish(emptymsg)
         self.explCellsPub.publish(emptymsg)
-        celf.fronCellsPub.publish(emptymsg)
+        self.fronCellsPub.publish(emptymsg)
 
-def getInitPose
+def getInitPose(msg):
     global initPose
     try:
         initPose = msg.pose
     except:
         print "no thing"
 
-def getGoal
+def getGoalPose():
     global goal
     try:
         goal = msg.pose
@@ -153,18 +161,24 @@ if __name__ == '__main__':
     global odom_tf
     global odom_list
     global initPose
-    #Subscribers & Publishers
+
+    #Subscribers & 
+
     cellPub = rospy.Publisher
-    initpose_sub = rospy.Subscriber('/startpose', Pose, getInitPose)
-    goal_sub = rospy.Subscriber('/goalpose', Pose, getGoal)
-    odom_sub = rospy.Subscriber('/odom', Odometry, readOdom)
+    button_sub = rospy.Subscriber('/clicked_point', PointStamped, map.Astar)
+    #initpose_sub = rospy.Subscriber('/startpose', PoseWithCovarianceStamped, getInitPose)
+    #goal_sub = rospy.Subscriber('/goalpose', PoseStamped, getGoal)
+
+    #odom_sub = rospy.Subscriber('/odom', Odometry, readOdom)
 
     # Use this object to get the robot's Odometry 
-    odom_list = tf.TransformListener()
+    #odom_list = tf.TransformListener()
     rospy.sleep(rospy.Duration(1, 0))
+    rospy.wait_for_service('/goalpose')
+
     print "Starting Lab 3"
 
-    map = Map()
+    map = map()
     map.getMap()
 
     rospy.sleep(Duration(1,0))
@@ -172,7 +186,7 @@ if __name__ == '__main__':
     map.clearCells()
 
     rospy.sleep(Duration(1,0))
-    path = map.Astar((initPose.x,initPose.y), (goal.x,goal.y))
+    path = map.Astar((initPose.position.x,initPose.position.y), (goal.position.x,goal.position.y))
 
     map.pubCells(path, map.pathCellsPub)
 
