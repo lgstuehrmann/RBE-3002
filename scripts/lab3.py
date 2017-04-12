@@ -1,192 +1,718 @@
 #!/usr/bin/env python
 
-import rospy, tf, numpy, math, sys
-from sets import Set
-
-from std_msgs.msg import String
-from nav_msgs.msg import Odometry, MapMetaData
-from std_msgs.msg import Header
-from geometry_msgs.msg import Twist, Point, PoseStamped, PoseWithCovarianceStamped, PointStamped
-from nav_msgs.srv import GetMap
-from nav_msgs.srv import GetMapRequest, GetMapResponse
+import rospy, tf, math, numpy
+import heapq
+import copy
+from geometry_msgs.msg import Twist
 from nav_msgs.msg import GridCells
+from nav_msgs.msg import Odometry, OccupancyGrid
+from geometry_msgs.msg import PoseStamped, Pose, Point, PoseWithCovarianceStamped
+from kobuki_msgs.msg import BumperEvent
+from std_msgs.msg import String
 from tf.transformations import euler_from_quaternion
-from __builtin__ import map
-from rospy.rostime import Duration
+# Add additional imports for each of the message types used
 
-global initPose
-global goal
-
+wheel_base = 0.2286 #m
+wheel_diam = 0.07 #m
 
 
-class map():
-    map = [[]]
-    map_res = .1
-    map_posList =[0,0,0]
-    map_orientList = [0,0,0,1]
-    map_width = 1
-    map_height = 1
-    threshUp = 80
-    threshLow = 20
-
-    closedPts = []
+class PQueue:
     def __init__(self):
-        self.getMapService = rospy.ServiceProxy('/static_map', GetMap)
-        self.pathCellsPub = rospy.Publisher('/path_cells', GridCells, latch=True)
-        self.explCellsPub = rospy.Publisher('/explored_cells', GridCells, latch=True)
-        self.fronCellsPub = rospy.Publisher('/frontier_cells', GridCells, latch=True)
+        self._queue = []
+        self._index = 0
 
-    def updateMapMetadata(self, msg):
-        self.map_res = msg.resolution
-        self.map_posList = [msg.origin.position.x, msg.origin.position.y, msg.origin.position.z]
-        self.map_orientList = [msg.origin.orientation.x, msg.origin.orientation.y, msg.origin.orientation.z, msg.origin.orientation.w]
-        self.map_width = msg.width
-        self.map_height = msg.height
+        def push(self, item, priority):
+            heapq.heappush(self._queue, (priority, self._index, item))
+            self._index +=1
 
-    def getMap(self):
-        request = GetMapRequest()
-        response = self.getMapService.call(request)
+        def pop(self):
+            return heapq.heappop(self._queue)[-1]
 
-        self.updateMapMetadata(response.map.info)
+class aNode:
+    def __init__(self, index, val, hestimate, gcost, adjacent):
+        self.index = index
+        self.val = val
+        self.hestimate = hestimate
+        self.gcost = gcost
+        self.adjacent = list()
+        self.f = 0
+        self.cameFrom = -1
 
-    def Astar(self, start, goal):
-        closedSet = Set()
-        openSet = Set()
-        came_from = {}
+    def appendAdjacent(self, index):
+        self.adjacent.append(index)
 
-        gScore = {}
-        fScore = {}
+    def setupParent(self, index):
+        self.cameFrom = (index)
 
-        gScore[start] = 0
-        fScore[start] = gScore[start] + self.heuristic_cost_estimate(start, goal)
+def noFilter(path): #takes the parsed path & tries to remove unecessary zigzags 
+    returnPath = list()
+    for i,node in enumerate(path):
+        point = Point()
+        currNode = path[i]
+        point.x = getWorldPointFromIndex(currNode).x
+        point.y = getWorldPointFromIndex(currNode).y
+        point.z = 0
+        
+        returnPath.append(point)
+        #print "Point in Path: X: %f Y: %f" % (point.x, point.y)
+    return returnPath
 
-        openSet.add(start)
+def mapCallBack(data):
+    global mapData
+    global width
+    global height
+    global mapgrid
+    global resolution
+    global offsetX
+    global offsetY
 
-        while (len(openSet) > 0):
-            frontier_set = openSet.intersection(fScore.keys())
-            frontier_dict = {k: f_score[k] for k in frontier_set}
-            current = min(frontier_dict, key=frontier_dict.get)
-            if(current == goal):
-                return self.getPath(came_from, goal)
+    mapgrid = data
+    resolution =data.info.resolution
+    mapData = data.data
+    width = data.info.width
+    height = data.info.height
+    offsetX = data.info.origin.position.x
+    offsetY = data.info.origin.position.y
 
+    print data.info
+
+def getStart(_startPos):
+    global startRead
+    startRead = True
+    global startPosX
+    global startPosY
+    global startPos
+    global startIndex
+
+    startPos = _startPos
+    startPosX = startPos.pose.pose.position.x
+    startPosY = startPos.pose.pose.position.y
+
+    startIndex = getIndexFromWorldPoint(startPosX, startPosY)
+
+    point = getWorldPointFromIndex(startIndex)
+    
+    startIndex = getIndexFromWorldPoint(startPosX, startPosY)
+    print "Printing start pose"
+    print startPos.pose.pose
+    point = getWorldPointFromIndex(startIndex)
+    print "Calculated world position: %f, %f Index: %i" % (point.x, point.y, startIndex)
+
+def readGoal(goal):
+    global goalRead
+    goalRead = True
+    global goalX
+    global goalY
+    global goalIndex
+    goalX= goal.pose.position.x
+    goalY= goal.pose.position.y
+    
+    goalIndex = getIndexFromWorldPoint(goalX,goalY)
+    print "Printing goal pose"
+    print goal.pose
+
+# returns the index number given a point in the world
+def getIndexFromPoint(x,y):
+    global Point
+
+    return int(((y)*width) + x)
+
+#returns in meters the point of the current index
+
+def getWorldPointFromIndex(index):
+    
+    global Point
+    global offsetX
+    global offsetY
+
+    point=Point()
+    #print "GetX: %i" % getX(index)
+    point.x=(getX(index)*resolution)+offsetX + (1.5 * resolution)
+    point.y=(getY(index)*resolution)+offsetY + (.5 * resolution)
+    point.z=0
+    return point
+
+# returns the index number given a point in the world
+def getIndexFromWorldPoint(x,y):
+    #calculate the index coordinates
+    indexX = int(((x-offsetX) - (1.5*resolution))/resolution)
+    indexY = int(((y-offsetY) - (.5*resolution))/resolution)
+    
+    index = int (((indexY)*width) + indexX) 
+    
+    print index 
+    return index
+
+def heuristic(index): 
+    current = getWorldPointFromIndex(index)
+    h = math.sqrt(pow(goalX-current.x,2)+pow(goalY-current.y,2))
+    return h
+
+def findConnected(node):
+    neighborhood = G.neighbors(node)
+    return neighborhood
+
+#returns the x value of the index
+def getX(index):
+    adjusted = index + 1
+    if (adjusted % width) == 0:
+        return width - 1
+    else:
+        return (adjusted % width) - 1
+
+#returns the y value of the index
+def getY(index):
+    adjusted = index
+    return math.floor(adjusted/width)
+    
+#checks if the passed point is in the map
+def isInMap(point):
+    #catch if point is negative
+    if(point.x < 0 or point.y < 0):
+        return False
+    # is point within 0 and width and 0 and height?
+    if( ( 0 <= point.x and width > point.x) and ( 0 <= point.y and height > point.y)):
+        return True
+    else:
+        return False
+
+#returns index of point above this one, only works for non-first row
+def pointAbove(point):
+    output = copy.deepcopy(point)
+    output.y += 1
+    return output
+
+#returns index of point below this one, only works for non-last row
+def pointBelow(point):
+    output = copy.deepcopy(point)
+    output.y -= 1
+    return output
+
+#returns index of point right of this one, only works for non-last column
+def pointRight(point):
+    output = copy.deepcopy(point)
+    output.x += 1
+    return output
+
+#returns index of point right of this one, only works for non-first column
+def pointLeft(point):
+    output = copy.deepcopy(point)
+    output.x -= 1
+    return output
+
+def linkMap():   
+    for i in range(0, height*width):
+        currentPoint = Point()
+        currentPoint.x = getX(i)
+        currentPoint.y = getY(i)
+        #print "I is %i, x is %i, y is %i" % (i, currentPoint.x, currentPoint.y)
+        # try adding north
+        if(isInMap(pointAbove(currentPoint))):  
+            myPoint = pointAbove(currentPoint)
+            #print "My Point X: %i Y: %i calc Index: %i" % (myPoint.x, myPoint.y,getIndexFromPoint(myPoint.x,myPoint.y))
+            G[i].appendAdjacent(getIndexFromPoint(myPoint.x,myPoint.y))
+        currentPoint.x = getX(i)
+        currentPoint.y = getY(i)
+        # try adding east
+        if(isInMap(pointRight(currentPoint))):
+            myPoint = pointRight(currentPoint)
+            #print "My Point X: %i Y: %i calc Index: %i" % (myPoint.x, myPoint.y,getIndexFromPoint(myPoint.x,myPoint.y))
+            G[i].appendAdjacent(getIndexFromPoint(myPoint.x,myPoint.y))
+        currentPoint.x = getX(i)
+        currentPoint.y = getY(i)
+        # try adding south
+        if(isInMap(pointBelow(currentPoint))):
+            myPoint = pointBelow(currentPoint)
+            #print "My Point X: %i Y: %i calc Index: %i" % (myPoint.x, myPoint.y,getIndexFromPoint(myPoint.x,myPoint.y))
+            G[i].appendAdjacent(getIndexFromPoint(myPoint.x,myPoint.y))
+        currentPoint.x = getX(i)
+        currentPoint.y = getY(i)
+        # try adding west
+        if(isInMap(pointLeft(currentPoint))):
+            myPoint = pointLeft(currentPoint)
+            #print "My Point X: %i Y: %i  calc Index: %i" % (myPoint.x, myPoint.y,getIndexFromPoint(myPoint.x,myPoint.y))
+            G[i].appendAdjacent(getIndexFromPoint(myPoint.x,myPoint.y))
+
+def initMap(): 
+    global frontier
+    for i in range(0, width*height):
+        node = aNode(i,mapData[i],heuristic(i),0.0, 0)
+        G.append(node) 
+        frontier.append(0)
+    print len(G)    
+    linkMap()
+
+def calcG(currentG, neighborG):
+    if (neighborG == 0): 
+        neighborG = currentG + resolution
+    return neighborG
+
+def adjCellCheck(current):
+    global adjList
+    global traversal
+    adjList =  current.adjacent ## list of indexes of neighbor 
+    for index in adjList:
+        currCell = G[index] 
+        if(currCell.val != 100): 
+            evalNeighbor(currCell, current) 
+        traversal.append(G[index])
+        if index == goalIndex:
+            print "Goooooooooaaaaaaaallllllllll"
+            break
+    publishTraversal(traversal)
+
+def evalNeighbor(nNode, current): #check to see if in the closed set
+    if(nNode not in closedSet): 
+        tentative = current.gcost + resolution 
+        if (nNode not in openSet) or (tentative < nNode.gcost): 
+            if (nNode not in openSet):
+                openSet.append(nNode)
+            nNode.gcost = calcG(current.gcost+nNode.gcost, nNode.gcost)
+            nNode.f = nNode.gcost + 2*nNode.hestimate
+            G[nNode.index].cameFrom = current.index
+    else:
+        lowestInQ(openSet)
+
+def lowestInQ(nodeSet): 
+    costList = list() 
+    for node in nodeSet:
+        costList.append(node.f)
+
+    a = costList.index(min(costList))
+    mapIndex = nodeSet[a].index
+    return mapIndex
+
+def reconPath(current, start): 
+    total_path = list()
+    total_path.append(current.index)
+            
+    while (current.cameFrom != -1):
+        current = G[current.cameFrom]
+        total_path.append(current.cameFrom)     
+             
+    return total_path
+
+def aStar():
+    
+    global G
+    G = list()
+    initMap()  # add all nodes to grah, link all nodes
+
+    global path 
+    path = list()
+    global openSet
+    global closedSet
+
+    global traversal
+    traversal = list()
+    global frontier
+    frontier = list()
+
+    openSet = list()
+    openSet.append(G[startIndex])        #Add first node to openSet # set priority to distance
+    closedSet = list()         #everything that has been examined
+    
+    print "start a*"
+    
+    print len(openSet)
+    #print openSet[0].index
+
+    while openSet:  
+
+        try:
+            i = lowestInQ(openSet) 
+            current = G[i]
+            if current in frontier: 
+                frontier.remove(current)
+            #print G[i].cameFrom
+            if (current.index == goalIndex): 
+                print reconPath(current, G[startIndex])
+                                
+                return reconPath(current, startIndex)
+                pass
             openSet.remove(current)
-            closedSet.add(current)
-            for neighbor, distance in self.getNeighbors(current):
-                if (neighbor in closedSet):
-                    continue
-                self.pub_cells(closedSet, self.explCellsPub, cells_as_points=False)
+            closedSet.append(current)       
+            adjCellList = adjCellCheck(current)
+            if adjCellList:
+                for node in adjCellList:
+                    if node not in closedSet:
+                        frontier.append(node)
+                        publishFrontier(frontier)
+        except KeyboardInterrupt: 
+            break
+    
+    print "No route to goal"
 
-                tent_gScore = gScore[current] + distance
-                if(neighbor not in openSet) or (tent_gScore < gScore[neighbor]):
-                    came_from[neighbor] = current
-                    gScore[neighbor] = tent_gScore
-                    fScore[neighbor] = gScore[neighbor]+self.heuristic_cost_estimate(neighbor, goal_cell)
-                    if(neighbor not in openSet):
-                        openSet.add(neighbor)
+def getWaypoints(path): #calculate waypoints from optimal path
+    
+    global Point
 
-    def checkAdd(cell, delta, neighbors, distances):
-        new_cell = tuple(map(add, cell, delta))
-        if not ((self.map[new_cell[1]] [new_cell[0]]) ==1):
-            neighbors.append(new_cell)
-            distances.append(hypot(*map(sub, (0,0), delta)))
+    returnPath = list()
+    point = Point()
+    pointNode = path[0]
+    point.x = getWorldPointFromIndex(pointNode).x
+    point.y = getWorldPointFromIndex(pointNode).y
+    point.z = 0
+    returnPath.append(point)
+    for i,node in enumerate(path):
+        currPoint = Point()
+        currNode = path[i]
+        currPoint.x = getWorldPointFromIndex(currNode).x
+        currPoint.y = getWorldPointFromIndex(currNode).y
+        currPoint.z = 0
 
-    def getNeighbors(cell):
-        neighbors = []
-        distances = []
+        if (i+1 < len(path)):
+            nextPoint = Point()
+            nextNode = path[i+1]
+            nextPoint.x = getWorldPointFromIndex(nextNode).x
+            nextPoint.y = getWorldPointFromIndex(nextNode).y
+            nextPoint.z = 0
 
-        checkAdd(cell, (1,0), neighbors, distances)
-        checkAdd(cell, (0,1), neighbors, distances)
-        checkAdd(cell, (-1,0), neighbors, distances)
-        checkAdd(cell, (0,-1), neighbors, distances)
-
-        return zip(neighbors, distances)
-
-
-    def heuristic_cost_estimate(start, goal):
-        heuristic = sqrt(pow((goal.x-start.x), 2)+pow((goal.y-start.y),2))
-        return heuristic
-
-    def getPath(self, came_from, current):
-        if current in came_from:
-            path = self.getPath(came_from, came_from[current])
-            path.append(current)
-            return path
+            if(math.degrees(math.fabs(math.atan2(nextPoint.y-currPoint.y,nextPoint.x-nextPoint.y))) >= 10):
+                returnPath.append(currPoint)
         else:
-            return[current]
+            returnPath.append(currPoint)
+            pass
 
-    def cellCoordsToPoints(self, coords):
-        cellSize = [self.map_res, self.map_res]
-        cellOffset = map(add, self.map_posList[:2], [self.map_res/2, self.map_res/2])
-        return [Point(*(map(add, map(mul, coord, cellSize), cellOffset) + [0]) ) for coord in coords]
+    return returnPath
 
-    def pubCells(self, cells, cellPub):
-        msg = GridCells()
-        msg.cell_height = map.map_res
-        msg.cell_width = map.map_res
-        msg.header.frame_id = '/map'
+def publishWaypoints(grid):
+    global pubway
+    #print "publishing traversal"
 
-        msg.cells = map.cellCoordsToPts(cells)
-        cellPub.publish(msg)
+        # resolution and offset of the map
+    k=0
+    cells = GridCells()
+    cells.header.frame_id = 'map'
+    cells.cell_width = resolution 
+    cells.cell_height = resolution
 
-    def clearCells(self):
-        emptymsg = GridCells(cell_width = self.map_res,
-            cell_height = self.map_res,
-            header = Header(frame_id ="/map"))
-        self.pathCellsPub.publish(emptymsg)
-        self.explCellsPub.publish(emptymsg)
-        self.fronCellsPub.publish(emptymsg)
+    for node in grid:
+        point=Point()
+        point = node
+        cells.cells.append(point)
+    print "Point in Waypoint: X: %f Y: %f" % (point.x, point.y)
+    pubway.publish(cells) 
 
-def getInitPose(msg):
-    global initPose
-    try:
-        initPose = msg.pose
-    except:
-        print "no thing"
+def publishCells(grid):
+    global pub
+    #print "publishing"
 
-def getGoal():
-    global goal
-    try:
-        goal = msg.pose
-    except:
-        print "no thing"
+    # resolution and offset of the map
+    k=0
+    cells = GridCells()
+    cells.header.frame_id = 'map'
+    cells.cell_width = resolution 
+    cells.cell_height = resolution
+
+    for i in range(1,height): #height should be set to hieght of grid
+        k=k+1
+        for j in range(1,width): #width should be set to width of grid
+            k=k+1
+            #print k # used for debugging
+            if (grid[k] == 100):
+                point=Point()
+                point.x=(j*resolution)+offsetX + (1.5 * resolution) # added secondary offset 
+                point.y=(i*resolution)+offsetY - (.5 * resolution) # added secondary offset ... Magic ?
+                point.z=0
+                cells.cells.append(point)
+    pub.publish(cells) 
+
+def publishFrontier(grid):
+    global pub_frontier
+    print "publishing frontier"
+
+        # resolution and offset of the map
+    k=0
+    cells = GridCells()
+    cells.header.frame_id = 'map'
+    cells.cell_width = resolution 
+    cells.cell_height = resolution
+
+    for node in grid:
+        point=Point()
+        point = getWorldPointFromIndex(node.index)
+        cells.cells.append(point)
+    pub_frontier.publish(cells)
+
+def publishTraversal(grid):
+    global pub_traverse
+    #print "publishing traversal"
+
+        # resolution and offset of the map
+    k=0
+    cells = GridCells()
+    cells.header.frame_id = 'map'
+    cells.cell_width = resolution 
+    cells.cell_height = resolution
+
+    for node in grid:
+        point=Point()
+        point = getWorldPointFromIndex(node.index)
+        cells.cells.append(point)
+    pub_traverse.publish(cells) 
+
+def publishPath(grid):
+    global pub_path
+    #print "publishing traversal"
+
+        # resolution and offset of the map
+    k=0
+    cells = GridCells()
+    cells.header.frame_id = 'map'
+    cells.cell_width = resolution 
+    cells.cell_height = resolution
+
+    for node in grid:
+        point=Point()
+        point = node
+        cells.cells.append(point)
+    #print "Point in Path: X: %f Y: %f" % (point.x, point.y)
+    pub_path.publish(cells) 
+
+def pubGoal(grid):
+    global goal_pub
+    
+    cells = GridCells()
+    cells.header.frame_id = 'map'
+    cells.cell_width = resolution
+    cells.cell_height = resolution
+
+    for node in grid:
+        point = getWorldPointFromIndex(node.index)
+        cells.cells.append(point)
+    goal_pub.publish(cells)
+
+#drive to a goal subscribed as /move_base_simple/goal
+def navToPose(goal):
+    #take goal params and find delta to currpos params
+    print "spin!"
+    #turn delta theta using spinWheels(vr, -vr, time to rotate)
+
+    print "move!"
+    #go delta x, y using spingWheels(vr, vl, time to dest)
+    
+    print "spin!"
+    #spin delta theta using spingWheels(vr, -vr, time to dest)
+    
+    print "done"
+    #cry
+    pass
+
+#Odom "Callback" function.
+def readOdom(msg):
+    global pose
+
+    pose = msg.pose
+
+
+#This function sequentially calls methods to perform a trajectory.
+def executeTrajectory():
+
+    driveStraight(0.3, 0.06)
+    rotate(1.6)
+    driveStraight(0.3, 0.045)
+    rotate(-2.4)
+
+#This function accepts two wheel velocities and a time interval.
+def spinWheels(u1, u2, time):
+    # compute wheel speeds
+    w = (u1 - u2) / wheel_base
+    u = (wheel_diam / 2) * (u1 + u2)
+    start = rospy.Time().now().secs
+
+    while ((rospy.Time().now().secs - start) < time):
+        publishTwist(u, w)
+
+    publishTwist(0, 0)
+
+#This function accepts a speed and a distance for the robot to move in a straight line
+
+def driveStraight(speed, distance):
+
+    global pose
+
+    xnaught = pose.pose.position.x #set an origin at the robot's current position
+    currpos = Twist()
+    objectiveReached = False
+    print "values set"
+    while (not objectiveReached):
+
+        x = pose.pose.position.x
+        dx = x-xnaught
+        print "in while loop"
+        if (dx >= distance):
+            objectiveReached = True
+            publishTwist(0, 0)
+            print "fuken dun m8"
+
+        else:
+
+            #currpos.linear.x = speed
+            #pub.publish(currpos)
+            publishTwist(speed, 0)
+            print "moving"
+            #rospy.sleep(rospy.Duration(0, 0.02))
+        #rospy.sleep(rospy.Duration(0, 500000))
+
+
+#Accepts an angle and makes the robot rotate around it.
+def rotate(angle):
+
+    global odom_list
+    global pose
+
+    transformer = tf.TransformerROS()   
+    rotation = numpy.array([[math.cos(angle), -math.sin(angle), 0], #Create th goal rotation
+                            [math.sin(angle), math.cos(angle), 0],
+                            [0,          0,          1]])
+
+ 
+
+#Get all the transforms for frames
+    odom_list.waitForTransform('odom', 'base_footprint', rospy.Time(0), rospy.Duration(4.0))
+    (trans, rot) = odom_list.lookupTransform('odom', 'base_footprint', rospy.Time(0))
+    T_o_t = transformer.fromTranslationRotation(trans, rot)
+    R_o_t = T_o_t[0:3,0:3]
+
+ #Setup goal matrix
+    goal_rot = numpy.dot(rotation, R_o_t)
+    goal_o = numpy.array([[goal_rot[0,0], goal_rot[0,1], goal_rot[0,2], T_o_t[0,3]],
+                 [goal_rot[1,0], goal_rot[1,1], goal_rot[1,2], T_o_t[1,3]],
+                 [goal_rot[2,0], goal_rot[2,1], goal_rot[2,2], T_o_t[2,3]],
+                 [0,             0,             0,             1]])
+
+    #This code continuously creates and matches coordinate transforms.
+    done = False
+    while (not done and not rospy.is_shutdown()):
+        (trans, rot) = odom_list.lookupTransform('odom', 'base_footprint', rospy.Time(0))
+        state = transformer.fromTranslationRotation(trans, rot)
+        within_tolerance = abs((state - goal_o)) < .2
+        if ( within_tolerance.all() ):
+            spinWheels(0,0,0)
+            done = True
+        else:
+            if (angle > 0):
+                spinWheels(.1,-.1,.1)
+            else:
+                spinWheels(-.1,.1,.1)
+
+#This function works the same as rotate how ever it does not publish linear velocities.
+def driveArc(radius, speed, angle):
+    pass  # Delete this 'pass' once implemented
+
+#This function takes angular and linear speeds and publishes them to a twist-type message
+def publishTwist(linearvalue, angularvalue):
+
+    global pub
+
+    twist = Twist()
+    twist.linear.x = linearvalue
+    twist.angular.z = angularvalue
+
+    pub.publish(twist)
+
+
+#Bumper Event Callback function
+def readBumper(msg):
+    global bumper
+    if (msg.state == 1):
+        print "boop"
+        bumper = 1
+
+# (Optional) If you need something to happen repeatedly at a fixed interval, write the code here.
+# Start the timer with the following line of code: 
+
+def timerCallback(event):
+    global pose
+    pose = Pose()
+
+    (position, orientation) = odom_list.lookupTransform('...','...', rospy.Time(0)) #finds the position and oriention of two objects relative to each other (hint: this returns arrays, while Pose uses lists)
+    
+    pass # Delete this 'pass' once implemented
+
 
 # This is the program's main function
 if __name__ == '__main__':
-    rospy.init_node('lgstuehrmann_Lab_3_node')
-    
+
+    # These are global variables. Write "global <variable_name>" in any other function to gain access to these global variables 
     global pub
     global pose
     global odom_tf
     global odom_list
-    global initPose
+    global bumper
+    global startRead
+    startRead = False
+    goalRead = False
+    global pub_frontier
+    global pub_traverse
+    global pub_path
+    global pubway
+    global frontier
+    frontier = list()
+    global goal_pub
 
-    #Subscribers & 
+    bumper = 0
 
-    cellPub = rospy.Publisher
-    button_sub = rospy.Subscriber('/clicked_point', PointStamped, map.Astar)
-    initpose_sub = rospy.Subscriber('/startpose', PoseWithCovarianceStamped, getInitPose)
-    goal_sub = rospy.Subscriber('/goalpose', PoseStamped, getGoal)
+    # Change this node name to include your username
+    rospy.init_node('lab3')
 
-    #odom_sub = rospy.Subscriber('/odom', Odometry, readOdom)
+    # Replace the elipses '...' in the following lines to set up the publishers and subscribers the lab requires
+    
+    
+    bumper_sub = rospy.Subscriber('mobile_base/events/bumper', BumperEvent, readBumper, queue_size=1) # Callback function to handle bumper events
+    sub = rospy.Subscriber('/map', OccupancyGrid, mapCallBack)
+    pub = rospy.Publisher('/mapcheck', GridCells) # Publisher for commanding robot motion
+    pub_path = rospy.Publisher('/path', GridCells)
+    pubway = rospy.Publisher('/waypoints', GridCells, queue_size=1)
 
+
+    goal_sub = rospy.Subscriber('/goalpose', PoseStamped, readGoal)
+    pub_traverse = rospy.Publisher('/traversal', GridCells, queue_size=1)
+    pub_frontier = rospy.Publisher('/frontier', GridCells, queue_size=1)
+    start_sub = rospy.Subscriber("/startpose", PoseWithCovarianceStamped, getStart, queue_size=1) #change topic for best results
+    goal_pub = rospy.Publisher("/goalpose", PoseStamped, queue_size=1)
+    # wait a second for publisher, subscribers, and TF
+    rospy.sleep(1)
     # Use this object to get the robot's Odometry 
-    #odom_list = tf.TransformListener()
-    rospy.sleep(rospy.Duration(1, 0))
+    
+    odom_list = tf.TransformListener()
+    #odom_tf = tf.TransformBroadcaster()
+    #odom_tf.sendTransform((0, 0, 0),(0, 0, 0, 1),rospy.Time.now(),"base_footprint","odom")
+
+
+    # Use this command to make the program wait for some seconds
+    
     print "Starting Lab 3"
 
-    map = map()
-    map.getMap()
+    while (1 and not rospy.is_shutdown()):
+        publishCells(mapData) #publishing map data every 2 seconds
+        if startRead and goalRead:
+            path = aStar()
+            print "Going to publish path"
+            publishPath(noFilter(path))
+            print "Publishing waypoints"
+            publishWaypoints(getWaypoints(path))#publish waypoints
+            print "Done!"
+            goalRead = False
+        rospy.sleep(2)
 
-    rospy.sleep(Duration(1,0))
+    print "Starting Lab 3"
 
-    map.clearCells()
+    #while (bumper == 0):
+    #    print bumper
 
-    rospy.sleep(Duration(1,0))
-    path = map.Astar((initPose.position.x,initPose.position.y), (goal.position.x,goal.position.y))
-
-    map.pubCells(path, map.pathCellsPub)
-
-    print "Finished Lab 3"
+    #executeTrajectory()
+        #rospy.sleep(0.5)
+    #make the robot keep doing something...
+    #rospy.Timer(rospy.Duration(1), timerCallback)
 
 
+    #spinWheels(0.2, 0.5, 5)
+    #driveStraight(.3, 0.25)
+    #rotate(-0.5)
+    #executeTrajectory()
+    #readBumper()
+
+    # Make the robot do stuff...
 
