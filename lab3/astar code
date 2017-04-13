@@ -1,0 +1,217 @@
+#!/usr/bin/env python
+
+from __future__ import print_function
+from sets import Set
+from math import *
+from operator import add, mul, sub
+
+
+import rospy, sys
+from std_msgs.msg import Header
+from geometry_msgs.msg import Point
+from nav_msgs.srv import GetMap
+from nav_msgs.srv import GetMapRequest, GetMapResponse
+from nav_msgs.msg import MapMetaData
+from nav_msgs.msg import GridCells
+from genpy.rostime import Duration
+from __builtin__ import map
+
+
+class AStar():
+    
+    map = [[]]
+    map_resolution = 0.1
+    map_position_list = [0.0, 0.0, 0.0]
+    map_orientation_list = [0.0, 0.0, 0.0, 1.0]
+    map_width = 1
+    map_height = 1
+    upper_threshold = 80
+    lower_threshold = 20
+    
+    closed_points = []
+    
+    def __init__(self):
+        self.get_map_service = rospy.ServiceProxy('/static_map', GetMap)
+        self.path_cells_pub = rospy.Publisher('/path_cells', GridCells, latch=True)
+        self.expl_cells_pub = rospy.Publisher('/explored_cells', GridCells, latch=True)
+        self.fron_cells_pub = rospy.Publisher('/frontier_cells', GridCells, latch=True)
+    
+    def update_map_metadata(self, msg):
+        if False: msg = MapMetaData()
+        
+        self.map_resolution = msg.resolution
+        self.map_position_list = [msg.origin.position.x, msg.origin.position.y, msg.origin.position.z]
+        self.map_orientation_list = [msg.origin.orientation.x, msg.origin.orientation.y, msg.origin.orientation.z, msg.origin.orientation.w]
+        self.map_width = msg.width
+        self.map_height = msg.height
+
+    def getMap(self):
+        req = GetMapRequest()
+        res = self.get_map_service.call(req)
+        if False: res = GetMapResponse()
+        
+        self.update_map_metadata(res.map.info)
+        
+        # Reduce the map to only ones and zeros
+        res.map.data = [ 1 if i > self.upper_threshold else 0 for i in res.map.data ]
+            
+        # split map into list of lists
+        self.map = [res.map.data[i:i + self.map_width] for i in range(0, len(res.map.data), self.map_width)]
+
+        
+    def find_path(self, start_cell, goal_cell):
+        closedset = Set()
+        openset = Set()
+        came_from = {}
+        
+        g_score = {}
+        f_score = {}
+     
+        # Cost from start along best known path.
+        g_score[start_cell] = 0
+        # Estimated total cost from start to goal through y.
+        f_score[start_cell] = g_score[start_cell] + self.heuristic_cost_estimate(start_cell, goal_cell)
+        
+        openset.add(start_cell)
+        print("FScore: ", f_score[start_cell])
+     
+        while len(openset) > 0:
+            candidate_set = openset.intersection(f_score.keys())
+            candidate_dict = {k: f_score[k] for k in candidate_set}
+            current = min(candidate_dict, key=candidate_dict.get)
+            if current == goal_cell:
+                return self.reconstruct_path(came_from, goal_cell)
+     
+            openset.remove(current)
+            closedset.add(current)
+            for neighbor, dist_between in self.neighbor_nodes(current, eight_connected=True):
+                if neighbor in closedset: continue
+                
+#                 self.closed_points.append(self.cell_coords_to_points([current]))
+#                 self.pub_cells(self.closed_points, self.expl_cells_pub, cells_as_points=True)
+                self.pub_cells(closedset, self.expl_cells_pub, cells_as_points=False)
+                
+                tentative_g_score = g_score[current] + dist_between
+                if (neighbor not in openset) or (tentative_g_score < g_score[neighbor]): 
+                    came_from[neighbor] = current
+                    g_score[neighbor] = tentative_g_score
+                    f_score[neighbor] = g_score[neighbor] + self.heuristic_cost_estimate(neighbor, goal_cell)
+                    if neighbor not in openset:
+                        openset.add(neighbor)
+     
+        return failure
+ 
+    def reconstruct_path(self, came_from, current_node):
+        if current_node in came_from:
+            p = self.reconstruct_path(came_from, came_from[current_node])
+            p.append(current_node)
+            return p
+        else:
+            return [current_node]
+    
+    def heuristic_cost_estimate(self, start_cell, end_cell):
+        val = map(sub, start_cell, end_cell)
+        return hypot(*val)
+    
+    
+    def neighbor_nodes(self, cell, eight_connected=True):
+        neighbors = []
+        distances = []
+        
+        
+        def check_and_add(cell, delta, neighbors, distances):
+            new_cell = tuple(map(add, cell, delta))
+            if not (self.map[new_cell[1]] [new_cell[0]]) == 1:
+                neighbors.append(new_cell)
+                distances.append( hypot(*map(sub, (0, 0), delta)) )
+             
+        
+        check_and_add(cell, ( 1,  0), neighbors, distances)
+        check_and_add(cell, ( 0,  1), neighbors, distances)
+        check_and_add(cell, (-1,  0), neighbors, distances)
+        check_and_add(cell, ( 0, -1), neighbors, distances)
+        
+        if eight_connected:
+            check_and_add(cell, ( 1,  1), neighbors, distances)
+            check_and_add(cell, (-1,  1), neighbors, distances)
+            check_and_add(cell, (-1, -1), neighbors, distances)
+            check_and_add(cell, ( 1, -1), neighbors, distances)
+        
+        return zip(neighbors, distances)
+    
+    def get_wall_cells(self):
+        cells = []
+        for i, row in enumerate(self.map):
+            for j, cell in enumerate(row):
+                if cell == 1:
+                    cells.append((j, i))
+        return cells
+    
+    def get_free_cells(self):
+        cells = []
+        for i, row in enumerate(self.map):
+            for j, cell in enumerate(row):
+                if cell == 0:
+                    cells.append((j, i))
+        return cells
+        
+        
+    def print_map(self):
+         for row in self.map:
+            print(row)
+            
+                   
+    def cell_coords_to_points(self, coords):
+        cell_size = [self.map_resolution, self.map_resolution]
+        cell_offset = map(add, self.map_position_list[:2], [self.map_resolution/2., self.map_resolution/2.])
+        return [ Point( *(map(add, map(mul, coord, cell_size), cell_offset) + [0]) ) for coord in coords]
+    
+    
+    def pub_cells(self, cells, cell_pub, cells_as_points=False):
+        msg = GridCells()
+        msg.cell_height = star.map_resolution
+        msg.cell_width = star.map_resolution
+        msg.header.frame_id = '/map'
+        if cells_as_points:
+            msg.cells = cells
+        else:
+            msg.cells = star.cell_coords_to_points( cells )
+        
+        cell_pub.publish(msg)
+    
+    
+    def clear_cells(self):
+        empty_msg = GridCells(cell_width = self.map_resolution, 
+                              cell_height = self.map_resolution, 
+                              header = Header(frame_id="/map"))
+        
+        self.path_cells_pub.publish(empty_msg)
+        self.expl_cells_pub.publish(empty_msg)
+        self.fron_cells_pub.publish(empty_msg)
+
+
+
+
+
+
+if __name__ == '__main__':
+    
+    rospy.init_node('sample_planning_node')
+    
+    
+    
+    star = AStar()
+    star.getMap()
+  
+  
+    
+    rospy.sleep(Duration.from_sec(0.5))
+    star.clear_cells()
+    
+#     if not '--clear' in sys.argv():
+    rospy.sleep(Duration.from_sec(0.1))
+    path = star.find_path((3, 3), (9, 15))
+    
+    star.pub_cells(path, star.path_cells_pub)
+    
+#     rospy.spin()
