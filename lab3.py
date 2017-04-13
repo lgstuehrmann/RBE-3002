@@ -88,7 +88,7 @@ class map():
 
     def checkAdd(cell, delta, neighbors, distances):
         new_cell = tuple(map(add, cell, delta))
-        if not ((self.map[new_cell[1]] [new_cell[0]]) ==1):
+        if not (self.map[new_cell[1]] [new_cell[0]]) ==1:
             neighbors.append(new_cell)
             distances.append(hypot(*map(sub, (0,0), delta)))
 
