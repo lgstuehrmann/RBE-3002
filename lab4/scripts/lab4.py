@@ -656,28 +656,11 @@ def expandPath(path):
                 pass
     return obstacles
 
-#drive to a goal subscribed as /move_base_simple/goal
-def navToPose(goal):
-    #take goal params and find delta to currpos params
-    print "spin!"
-    #turn delta theta using spinWheels(vr, -vr, time to rotate)
-
-    print "move!"
-    #go delta x, y using spingWheels(vr, vl, time to dest)
-    
-    print "spin!"
-    #spin delta theta using spingWheels(vr, -vr, time to dest)
-    
-    print "done"
-    #cry
-    pass
-
 #Odom "Callback" function.
 def readOdom(msg):
     global pose
 
     pose = msg.pose
-
 
 #This function sequentially calls methods to perform a trajectory.
 def executeTrajectory():
@@ -803,6 +786,52 @@ def timerCallback(event):
     (position, orientation) = odom_list.lookupTransform('...','...', rospy.Time(0)) #finds the position and oriention of two objects relative to each other (hint: this returns arrays, while Pose uses lists)
     
     pass # Delete this 'pass' once implemented
+
+def navWithAStar(path):
+    global pose 
+    publishWaypoints(getWaypoints(path))
+    newpathPoints = getWaypoints(path)
+    posePath = list()
+    initPose = Pose()
+    initPose.position.x = pose.pose.position.x
+    initPose.position.y = pose.pose.position.y
+    initPose.position.z = 0
+    initPose.orientation.x = 0
+    initPose.orientation.y = 0
+    initPose.orientation.z = 0
+    initPose.orientation.w = 0
+    posePath.add(initPose)
+
+    for point in newpathPoints:
+        newPose = Pose()
+        newPose.position.x = point.x
+        newPose.position.y = point.y
+        newPose.position.z = 0
+        newPose.orientation.x = 0
+        newPose.orientation.y = 0
+        newPose.orientation.z = 0
+        newPose.orientation.w = 0
+        posePath.add(newPose)
+    
+    donePoses = list()
+
+    for pose in posePath:
+        #for distance
+        desx = newPose.pose.position.x
+        desy = newPose.pose.position.y
+        thisx = pose.pose.position.x
+        thisy = pose.pose.position.y
+        deltax = desx-thisx
+        deltay = desy-thisy
+        distancetoTraverse=pow((pow(deltax,2)+pow(deltay,2)),.5)
+        #for angle to rotate
+        phi=arctan(desy/desx)
+        thisphi = arctan(thisy/thisx)
+        angletoRotate = (180-phi)-thisphi
+        rotate(angletoRotate)
+        driveStraight(distancetoTraverse)
+        donePoses.add(newPose)
+        posePath.remove(newPose)
 
 
 # This is the program's main function
