@@ -792,6 +792,7 @@ def timerCallback(event):
 def navWithAStar(path):
     global pose 
     global startPos
+    global newPose
 
     publishWaypoints(getWaypoints(path))
     newpathPoints = getWaypoints(path)
@@ -807,14 +808,14 @@ def navWithAStar(path):
     posePath.append(initPose)
 
     for point in newpathPoints:
-        newPose = PoseStamped()
-        newPose.pose.position.x = point.x
-        newPose.pose.position.y = point.y
-        newPose.pose.position.z = 0
-        newPose.pose.orientation.x = 0
-        newPose.pose.orientation.y = 0
-        newPose.pose.orientation.z = 0
-        newPose.pose.orientation.w = 0
+        newPose = Pose()
+        newPose.position.x = point.x
+        newPose.position.y = point.y
+        newPose.position.z = 0
+        newPose.orientation.x = 0
+        newPose.orientation.y = 0
+        newPose.orientation.z = 0
+        newPose.orientation.w = 0
         posePath.append(newPose)
     
     donePoses = list()
@@ -833,7 +834,7 @@ def navWithAStar(path):
         thisphi = numpy.arctan(thisy/thisx)
         angletoRotate = (180-phi)-thisphi
         rotate(angletoRotate)
-        driveStraight(distancetoTraverse, 0.25)
+        driveStraight(0.25, distancetoTraverse)
         donePoses.append(newPose)
         posePath.remove(newPose)
 
