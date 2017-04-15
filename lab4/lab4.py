@@ -85,7 +85,6 @@ def getStart(_startPos):
     global startPosX
     global startPosY
     global startPos
-    global startIndex
 
     startPos = _startPos
     startPosX = startPos.pose.pose.position.x
@@ -95,7 +94,6 @@ def getStart(_startPos):
 
     point = getWorldPointFromIndex(startIndex)
     
-    startIndex = getIndexFromWorldPoint(startPosX, startPosY)
     print "Printing start pose"
     print startPos.pose.pose
     point = getWorldPointFromIndex(startIndex)
@@ -315,6 +313,8 @@ def aStar():
     frontier = list()
 
     openSet = list()
+
+    startIndex(pose.position.x, pose.position.y)
     openSet.append(G[startIndex])        #Add first node to openSet # set priority to distance
     closedSet = list()         #everything that has been examined
     
@@ -891,7 +891,7 @@ if __name__ == '__main__':
 
     # Use this command to make the program wait for some seconds
     
-    print "Starting Lab 3"
+    print "Starting Lab 4"
 
     while (1 and not rospy.is_shutdown()):
         publishCells(mapData) #publishing map data every 2 seconds
@@ -906,7 +906,6 @@ if __name__ == '__main__':
             goalRead = False
         rospy.sleep(2)
 
-    print "Starting Lab 3"
 
     #while (bumper == 0):
     #    print bumper

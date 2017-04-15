@@ -688,13 +688,15 @@ def driveStraight(speed, distance):
 
     global pose
 
-    xnaught = pose.pose.position.x #set an origin at the robot's current position
+    pose = Pose()
+
+    xnaught = pose.position.x #set an origin at the robot's current position
     currpos = Twist()
     objectiveReached = False
     print "values set"
     while (not objectiveReached):
 
-        x = pose.pose.position.x
+        x = pose.position.x
         dx = x-xnaught
         print "in while loop"
         if (dx >= distance):
@@ -760,13 +762,13 @@ def driveArc(radius, speed, angle):
 #This function takes angular and linear speeds and publishes them to a twist-type message
 def publishTwist(linearvalue, angularvalue):
 
-    global pub
+    global pubtwist
 
     twist = Twist()
     twist.linear.x = linearvalue
     twist.angular.z = angularvalue
 
-    pub.publish(twist)
+    pubtwist.publish(twist)
 
 
 #Bumper Event Callback function
@@ -789,48 +791,50 @@ def timerCallback(event):
 
 def navWithAStar(path):
     global pose 
+    global startPos
+
     publishWaypoints(getWaypoints(path))
     newpathPoints = getWaypoints(path)
     posePath = list()
     initPose = Pose()
-    initPose.position.x = pose.pose.position.x
-    initPose.position.y = pose.pose.position.y
+    initPose.position.x = startPos.pose.pose.position.x
+    initPose.position.y = startPos.pose.pose.position.y
     initPose.position.z = 0
     initPose.orientation.x = 0
     initPose.orientation.y = 0
     initPose.orientation.z = 0
     initPose.orientation.w = 0
-    posePath.add(initPose)
+    posePath.append(initPose)
 
     for point in newpathPoints:
-        newPose = Pose()
-        newPose.position.x = point.x
-        newPose.position.y = point.y
-        newPose.position.z = 0
-        newPose.orientation.x = 0
-        newPose.orientation.y = 0
-        newPose.orientation.z = 0
-        newPose.orientation.w = 0
-        posePath.add(newPose)
+        newPose = PoseStamped()
+        newPose.pose.position.x = point.x
+        newPose.pose.position.y = point.y
+        newPose.pose.position.z = 0
+        newPose.pose.orientation.x = 0
+        newPose.pose.orientation.y = 0
+        newPose.pose.orientation.z = 0
+        newPose.pose.orientation.w = 0
+        posePath.append(newPose)
     
     donePoses = list()
 
-    for pose in posePath:
+    for nextpose in posePath:
         #for distance
-        desx = newPose.pose.position.x
-        desy = newPose.pose.position.y
-        thisx = pose.pose.position.x
-        thisy = pose.pose.position.y
+        desx = nextpose.position.x
+        desy = nextpose.position.y
+        thisx = startPos.pose.pose.position.x
+        thisy = startPos.pose.pose.position.y
         deltax = desx-thisx
         deltay = desy-thisy
         distancetoTraverse=pow((pow(deltax,2)+pow(deltay,2)),.5)
         #for angle to rotate
-        phi=arctan(desy/desx)
-        thisphi = arctan(thisy/thisx)
+        phi=numpy.arctan(desy/desx)
+        thisphi = numpy.arctan(thisy/thisx)
         angletoRotate = (180-phi)-thisphi
         rotate(angletoRotate)
-        driveStraight(distancetoTraverse)
-        donePoses.add(newPose)
+        driveStraight(distancetoTraverse, 0.25)
+        donePoses.append(newPose)
         posePath.remove(newPose)
 
 
@@ -869,6 +873,7 @@ if __name__ == '__main__':
     pub = rospy.Publisher('/mapcheck', GridCells) # Publisher for commanding robot motion
     pub_path = rospy.Publisher('/path', GridCells)
     pubway = rospy.Publisher('/waypoints', GridCells, queue_size=1)
+    pubtwist = rospy.Publisher('cmd_vel_mux/input/teleop', Twist, None, queue_size = 10)
 
 
     goal_sub = rospy.Subscriber('/goalpose', PoseStamped, readGoal)
@@ -878,7 +883,7 @@ if __name__ == '__main__':
     goal_pub = rospy.Publisher("/goalpose", PoseStamped, queue_size=1)
     pub_obs = rospy.Publisher("/obstacles", GridCells)
     # wait a second for publisher, subscribers, and TF
-    rospy.sleep(1)
+    rospy.sleep(0)
     # Use this object to get the robot's Odometry 
     
     odom_list = tf.TransformListener()
@@ -898,7 +903,11 @@ if __name__ == '__main__':
             print "Going to publish path"
             publishPath(noFilter(path))
             print "Publishing waypoints"
+
             publishWaypoints(getWaypoints(path))#publish waypoints
+            
+            navWithAStar(path)
+
             print "Done!"
             goalRead = False
         rospy.sleep(2)
