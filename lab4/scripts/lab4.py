@@ -670,8 +670,94 @@ def executeTrajectory():
     driveStraight(0.3, 0.045)
     rotate(-2.4)
 
-#This function accepts two wheel velocities and a time interval.
+#This function accepts two wheel velocities(linear in in/s) and a time interval(s).
 def spinWheels(u1, u2, time):
+    global pub
+
+    beginning_time = rospy.Time().now().secs
+
+    omega = (u2-u1)/.229
+    linear = (.229/2)*(u1-u2)
+
+    rob_pos = Twist()
+    rob_pos.angular.z = omega
+    rob_pos.linear.x = linear
+
+    while(rospy.Time().now().secs - beginning_time < time):
+        pub.publish(rob_pos)
+
+    print "spin complete"
+
+#This function accepts a speed and a distance for the robot to move in a straight line
+def driveStraight(speed, distance):
+    global pose
+    px = pose.pose.position.x
+    desx = px+distance
+    rob_pos = Twist()
+    there = False
+    while(not there):
+        nowx = pose.pose.position.x
+        newdist = abs(nowx - px)
+        print str(newdist)+','+str(distance)
+        if(newdist >= distance):
+            there = True
+            rob_pos.linear.x = 0
+            pub.publish(rob_pos)
+        else:
+            rob_pos.linear.x = speed
+            pub.publish(rob_pos)
+    
+    print "done straight"
+   
+#Accepts an angle and makes the robot rotate around it.
+def rotate(angle):
+    print "in rotate"
+    global pose
+
+    rob_pos = Twist()
+    #Had to separate out the quaternion because it was geometry_msgs, not transform
+    quaternion = (
+        pose.pose.orientation.x,
+        pose.pose.orientation.y,
+        pose.pose.orientation.z,
+        pose.pose.orientation.w)
+    initeuler = tf.transformations.euler_from_quaternion(quaternion)
+    inityaw = initeuler[2]
+    print inityaw
+    print angle
+
+    there = False
+    while(not there):
+        currquaternion = (
+            pose.pose.orientation.x,
+            pose.pose.orientation.y,
+            pose.pose.orientation.z,
+            pose.pose.orientation.w)
+        curreuler = tf.transformations.euler_from_quaternion(currquaternion)
+        curryaw = curreuler[2]
+        newang = abs(curryaw - inityaw)
+        print str(newang) +','+ str(angle)
+        if(angle >= 0):
+            if(newang >= angle):
+                there = True
+                rob_pos.angular.z = 0
+                pub.publish(rob_pos)
+            else:
+                rob_pos.angular.z = .25
+                pub.publish(rob_pos)
+        else:
+            if(abs(newang) >= abs(angle)):
+                there = True
+                rob_pos.angular.z = 0
+                pub.publish(rob_pos)
+            else:
+                rob_pos.angular.z = -.75
+                pub.publish(rob_pos)
+
+    print "done angle"
+
+#This function accepts two wheel velocities and a time interval.
+'''def spinWheels(u1, u2, time):
     # compute wheel speeds
     w = (u1 - u2) / wheel_base
     u = (wheel_diam / 2) * (u1 + u2)
@@ -753,7 +839,7 @@ def rotate(angle):
             if (angle > 0):
                 spinWheels(.1,-.1,.1)
             else:
-                spinWheels(-.1,.1,.1)
+                spinWheels(-.1,.1,.1)'''
 
 #This function works the same as rotate how ever it does not publish linear velocities.
 def driveArc(radius, speed, angle):
