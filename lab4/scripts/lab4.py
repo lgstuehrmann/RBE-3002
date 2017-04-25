@@ -15,6 +15,12 @@ from tf.transformations import euler_from_quaternion
 wheel_base = 0.2286 #m
 wheel_diam = 0.07 #m
 
+global eightconnected
+global fourconnected
+
+eightconnected = True
+fourconnected = False
+
 robot_size = 0.25
 
 class PQueue:
@@ -203,6 +209,18 @@ def pointLeft(point):
     output.x -= 1
     return output
 
+def pUL(point): 
+    return pointRight(pointAbove(point))
+
+def pUR(point): 
+    return pointLeft(pointAbove(point))
+
+def pBL(point): 
+    return pointLeft(pointBelow(point))
+
+def pBR(point): 
+    return pointRight(pointBelow(point)) 
+
 def linkMap():   
     for i in range(0, height*width):
         currentPoint = Point()
@@ -256,16 +274,107 @@ def calcG(currentG, neighborG):
 def adjCellCheck(current):
     global adjList
     global traversal
+    global eightconnected
+
     adjList =  current.adjacent ## list of indexes of neighbor 
     for index in adjList:
         currCell = G[index] 
         if(currCell.weight != 100): 
             evalNeighbor(currCell, current) 
-        traversal.append(G[index])
+            traversal.append(G[index])
         if index == goalIndex:
             print "Goooooooooaaaaaaaallllllllll"
             break
+    
     publishTraversal(traversal)
+
+"""
+
+    if (connection and True):
+        adjList = eightConnector(current.index)
+        for index in adjList:
+            currCell = G[index]
+            if (currCell.weight != -1) and (currCell.weight <= 93):   #checks if cell is reachable  
+                evalNeighbor(currCell, current) # evaluates the neighbor 
+                traversal.append(G[index])
+
+        
+    else:
+        adjList =  current.adjacent ## list of indexes of neighbor 
+        for index in adjList:
+            currCell = G[index] 
+            if(currCell.weight != 100): 
+                evalNeighbor(currCell, current) 
+                traversal.append(G[index])
+            if index == goalIndex:
+                print "Goooooooooaaaaaaaallllllllll"
+                break
+"""
+
+
+
+def eightConnector(index):
+    adjList =  list()
+    currentPoint = Point()
+    currentPoint.x = getX(index)
+    currentPoint.y = getY(index)
+    
+        #print "I is %i, x is %i, y is %i" % (i, currentPoint.x, currentPoint.y)
+        # try adding north
+    if(isInMap(pointAbove(currentPoint))):  
+        myPoint = pointAbove(currentPoint)
+        adjList.append(getIndexFromPoint(myPoint.x,myPoint.y))
+    currentPoint.x = getX(index)
+    currentPoint.y = getY(index)
+        # try adding east
+    if(isInMap(pointRight(currentPoint))):
+        myPoint = pointRight(currentPoint)
+        adjList.append(getIndexFromPoint(myPoint.x,myPoint.y))
+    currentPoint.x = getX(index)
+    currentPoint.y = getY(index)
+        # try adding south
+    if(isInMap(pointBelow(currentPoint))):
+        myPoint = pointBelow(currentPoint)
+        adjList.append(getIndexFromPoint(myPoint.x,myPoint.y))
+    currentPoint.x = getX(index)
+    currentPoint.y = getY(index)
+        # try adding west
+    if(isInMap(pointLeft(currentPoint))):
+        myPoint = pointLeft(currentPoint)
+        adjList.append(getIndexFromPoint(myPoint.x,myPoint.y))
+        
+
+ #----------------- Diagonals -------------------------------# 
+    
+    if(isInMap(pUL(currentPoint))): 
+        myPoint = pUL(currentPoint)
+        adjList.append(getIndexFromPoint(myPoint.x,myPoint.y))
+
+    currentPoint.x = getX(index)
+    currentPoint.y = getY(index)
+    # try adding east
+    if(isInMap(pUR(currentPoint))):
+        myPoint = pUR(currentPoint)     
+        adjList.append(getIndexFromPoint(myPoint.x,myPoint.y))
+
+    currentPoint.x = getX(index)
+    currentPoint.y = getY(index)
+    # try adding south
+    if(isInMap(pBL(currentPoint))):
+        myPoint = pBL(currentPoint)     
+        adjList.append(getIndexFromPoint(myPoint.x,myPoint.y))
+
+    currentPoint.x = getX(index)
+    currentPoint.y = getY(index)
+    # try adding west
+    if(isInMap(pBR(currentPoint))):
+        myPoint = pBR(currentPoint)
+        adjList.append(getIndexFromPoint(myPoint.x,myPoint.y))
+
+
+    return adjList
+
+
 
 def evalNeighbor(nNode, current): #check to see if in the closed set
     if(nNode not in closedSet): 
@@ -308,6 +417,7 @@ def aStar():
     path = list()
     global openSet
     global closedSet
+    global eightconnected
 
     global traversal
     traversal = list()
@@ -657,10 +767,30 @@ def expandPath(path):
     return obstacles
 
 #Odom "Callback" function.
-def readOdom(msg):
+def readOdom(event):
     global pose
+    global xPosition
+    global yPosition
+    global theta
+    global startPose
 
-    pose = msg.pose
+    odom_list.waitForTransform('map', 'base_footprint', rospy.Time(0), rospy.Duration(10))
+    (position, orientation) = odom_list.lookupTransform('map', 'base_footprint', rospy.Time(0))
+    pose.position.x = position[0]
+    pose.position.y = position[1]
+    yPosition = position[1]
+    xPosition = position[0]
+
+    startPose = pose.position
+
+    odomW = orientation
+    q = [odomW[0], odomW[1], odomW[2], odomW[3]]
+    roll, pitch, yaw = euler_from_quaternion(q)
+
+    pose.orientation.z = yaw
+    theta = math.degrees(yaw)
+
+    #pose = msg.pose
 
 #This function sequentially calls methods to perform a trajectory.
 def executeTrajectory():
@@ -691,6 +821,7 @@ def spinWheels(u1, u2, time):
 #This function accepts a speed and a distance for the robot to move in a straight line
 def driveStraight(speed, distance):
     global pose
+
     px = pose.pose.position.x
     desx = px+distance
     rob_pos = Twist()
@@ -702,25 +833,26 @@ def driveStraight(speed, distance):
         if(newdist >= distance):
             there = True
             rob_pos.linear.x = 0
-            pub.publish(rob_pos)
+            pubtwist.publish(rob_pos)
         else:
             rob_pos.linear.x = speed
-            pub.publish(rob_pos)
+            pubtwist.publish(rob_pos)
     
     print "done straight"
    
 #Accepts an angle and makes the robot rotate around it.
 def rotate(angle):
     print "in rotate"
+
     global pose
 
     rob_pos = Twist()
     #Had to separate out the quaternion because it was geometry_msgs, not transform
     quaternion = (
-        pose.pose.orientation.x,
-        pose.pose.orientation.y,
-        pose.pose.orientation.z,
-        pose.pose.orientation.w)
+        pose.orientation.x,
+        pose.orientation.y,
+        pose.orientation.z,
+        pose.orientation.w)
     initeuler = tf.transformations.euler_from_quaternion(quaternion)
     inityaw = initeuler[2]
     print inityaw
@@ -729,117 +861,70 @@ def rotate(angle):
     there = False
     while(not there):
         currquaternion = (
-            pose.pose.orientation.x,
-            pose.pose.orientation.y,
-            pose.pose.orientation.z,
-            pose.pose.orientation.w)
+            pose.orientation.x,
+            pose.orientation.y,
+            pose.orientation.z,
+            pose.orientation.w)
         curreuler = tf.transformations.euler_from_quaternion(currquaternion)
         curryaw = curreuler[2]
         newang = abs(curryaw - inityaw)
-        print str(newang) +','+ str(angle)
+
+        error = angle - pose.orientation.z
+
+        print str(error) +','+ str(angle)
         if(angle >= 0):
             if(newang >= angle):
                 there = True
                 rob_pos.angular.z = 0
-                pub.publish(rob_pos)
+                pubtwist.publish(rob_pos)
+                break
             else:
-                rob_pos.angular.z = .25
-                pub.publish(rob_pos)
+                rob_pos.angular.z = .5
+                pubtwist.publish(rob_pos)
+                
         else:
             if(abs(newang) >= abs(angle)):
                 there = True
                 rob_pos.angular.z = 0
-                pub.publish(rob_pos)
+                pubtwist.publish(rob_pos)
+                break
             else:
-                rob_pos.angular.z = -.75
-                pub.publish(rob_pos)
+                rob_pos.angular.z = -.5
+                pubtwist.publish(rob_pos)
+                
 
     print "done angle"
 
-#This function accepts two wheel velocities and a time interval.
-'''def spinWheels(u1, u2, time):
-    # compute wheel speeds
-    w = (u1 - u2) / wheel_base
-    u = (wheel_diam / 2) * (u1 + u2)
-    start = rospy.Time().now().secs
 
-    while ((rospy.Time().now().secs - start) < time):
-        publishTwist(u, w)
-
-    publishTwist(0, 0)
-
-#This function accepts a speed and a distance for the robot to move in a straight line
-
-def driveStraight(speed, distance):
-
-    global pose
-
-    pose = Pose()
-
-    xnaught = pose.position.x #set an origin at the robot's current position
-    currpos = Twist()
-    objectiveReached = False
-    print "values set"
-    while (not objectiveReached):
-
-        x = pose.position.x
-        dx = x-xnaught
-        print "in while loop"
-        if (dx >= distance):
-            objectiveReached = True
-            publishTwist(0, 0)
-            print "fuken dun m8"
-
-        else:
-
-            #currpos.linear.x = speed
-            #pub.publish(currpos)
-            publishTwist(speed, 0)
-            print "moving"
-            #rospy.sleep(rospy.Duration(0, 0.02))
-        #rospy.sleep(rospy.Duration(0, 500000))
-
-
-#Accepts an angle and makes the robot rotate around it.
-def rotate(angle):
-
+def rotateDeg(angle):
     global odom_list
     global pose
+    global theta
+    error = angle-math.degrees(pose.orientation.z)
+    angvel = .5
+    if(error>=0):
+       angvel = .5
+    elif angle<0:
+       angvel = -.5
 
-    transformer = tf.TransformerROS()   
-    rotation = numpy.array([[math.cos(angle), -math.sin(angle), 0], #Create th goal rotation
-                            [math.sin(angle), math.cos(angle), 0],
-                            [0,          0,          1]])
+    angle= angle + math.degrees(pose.orientation.z)
+####mod it by 360 so it never overturns
+    if (angle > 180):
+       angle = angle-360
+    elif (angle < -180):
+       angle = angle+360
+    vel = Twist();   
+    done = True
 
- 
+    while ((abs(error) >= 2) and not rospy.is_shutdown()):
+            #Use this while loop to start the robots motion and determine if you are at the right angle.    
+        publishTwist(0,angvel)
+        error = angle-math.degrees(pose.orientation.z)
+        rospy.sleep(0.15)
 
-#Get all the transforms for frames
-    odom_list.waitForTransform('odom', 'base_footprint', rospy.Time(0), rospy.Duration(4.0))
-    (trans, rot) = odom_list.lookupTransform('odom', 'base_footprint', rospy.Time(0))
-    T_o_t = transformer.fromTranslationRotation(trans, rot)
-    R_o_t = T_o_t[0:3,0:3]
-
- #Setup goal matrix
-    goal_rot = numpy.dot(rotation, R_o_t)
-    goal_o = numpy.array([[goal_rot[0,0], goal_rot[0,1], goal_rot[0,2], T_o_t[0,3]],
-                 [goal_rot[1,0], goal_rot[1,1], goal_rot[1,2], T_o_t[1,3]],
-                 [goal_rot[2,0], goal_rot[2,1], goal_rot[2,2], T_o_t[2,3]],
-                 [0,             0,             0,             1]])
-
-    #This code continuously creates and matches coordinate transforms.
-    done = False
-    while (not done and not rospy.is_shutdown()):
-        (trans, rot) = odom_list.lookupTransform('odom', 'base_footprint', rospy.Time(0))
-        state = transformer.fromTranslationRotation(trans, rot)
-        within_tolerance = abs((state - goal_o)) < .2
-        if ( within_tolerance.all() ):
-            spinWheels(0,0,0)
-            done = True
-        else:
-            if (angle > 0):
-                spinWheels(.1,-.1,.1)
-            else:
-                spinWheels(-.1,.1,.1)'''
+        print str(error)
+        
+    publishTwist(0,0)
 
 #This function works the same as rotate how ever it does not publish linear velocities.
 def driveArc(radius, speed, angle):
@@ -855,7 +940,6 @@ def publishTwist(linearvalue, angularvalue):
     twist.angular.z = angularvalue
 
     pubtwist.publish(twist)
-
 
 #Bumper Event Callback function
 def readBumper(msg):
@@ -918,7 +1002,7 @@ def navWithAStar(path):
         #for angle to rotate
         phi=numpy.arctan(desy/desx)
         thisphi = numpy.arctan(thisy/thisx)
-        angletoRotate = (180-phi)-thisphi
+        angletoRotate = ((math.pi)-phi)-thisphi
         rotate(angletoRotate)
         driveStraight(0.25, distancetoTraverse)
         donePoses.append(newPose)
@@ -931,10 +1015,13 @@ if __name__ == '__main__':
     # These are global variables. Write "global <variable_name>" in any other function to gain access to these global variables 
     global pub
     global pose
+    pose = Pose()
     global odom_tf
     global odom_list
     global bumper
     global startRead
+    global startPos
+    startPos = Pose()
     startRead = False
     goalRead = False
     global pub_frontier
@@ -961,7 +1048,7 @@ if __name__ == '__main__':
     pub_path = rospy.Publisher('/path', GridCells)
     pubway = rospy.Publisher('/waypoints', GridCells, queue_size=1)
     pubtwist = rospy.Publisher('cmd_vel_mux/input/teleop', Twist, None, queue_size = 10)
-
+    odomSub = rospy.Subscriber('odom', Odometry, readOdom, queue_size = 5)
 
     goal_sub = rospy.Subscriber('/goalpose', PoseStamped, readGoal)
     pub_traverse = rospy.Publisher('/traversal', GridCells, queue_size=1)
@@ -969,20 +1056,34 @@ if __name__ == '__main__':
     start_sub = rospy.Subscriber("/startpose", PoseWithCovarianceStamped, getStart, queue_size=1) #change topic for best results
     goal_pub = rospy.Publisher("/goalpose", PoseStamped, queue_size=1)
     pub_obs = rospy.Publisher("/obstacles", GridCells)
+
+
     # wait a second for publisher, subscribers, and TF
-    rospy.sleep(0)
+    
     # Use this object to get the robot's Odometry 
     
+    rospy.Timer(rospy.Duration(.01), readOdom)
     odom_list = tf.TransformListener()
-    #odom_tf = tf.TransformBroadcaster()
-    #odom_tf.sendTransform((0, 0, 0),(0, 0, 0, 1),rospy.Time.now(),"base_footprint","odom")
+    odom_tf = tf.TransformBroadcaster()
+    odom_tf.sendTransform((0, 0, 0),(0, 0, 0, 1), rospy.Time.now(),"base_footprint","odom")
 
+
+    rospy.sleep(2)
 
     # Use this command to make the program wait for some seconds
     
-    print "Starting Lab 3"
+    print "Starting Lab 4"
 
+    rotateDeg(50)
+
+    while 1:
+        print "done!"
+
+
+"""
     while (1 and not rospy.is_shutdown()):
+
+
         publishCells(mapData) #publishing map data every 2 seconds
         if startRead and goalRead:
             path = aStar()
@@ -993,14 +1094,20 @@ if __name__ == '__main__':
 
             publishWaypoints(getWaypoints(path))#publish waypoints
             
-            navWithAStar(path)
+            #navWithAStar(path)
+            rotate(math.pi)
+            
+            while (1):
+                print "I should not be moving anymore"
+
+            
 
             print "Done!"
             goalRead = False
         rospy.sleep(2)
 
     print "Starting Lab 3"
-
+"""
     #while (bumper == 0):
     #    print bumper
 
