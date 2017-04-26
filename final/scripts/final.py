@@ -905,9 +905,11 @@ def navWithAStar(path):
             pass
 
 def readMap(msg):
-    global ObservedMap
-    ObservedMap = msg
-
+    global ObservedMap#map to add cells to
+    for each in msg.data:
+        if ObservedMap.data[each] != null:
+            pass
+        else ObservedMap.data[each] = msg.data[each]
 
 if __name__ == '__main__':
     global pub
@@ -933,6 +935,7 @@ if __name__ == '__main__':
     bumper = 0
 
     global ObservedMap
+    ObservedMap = OccupancyGrid()
 
     rospy.init_node('final')
     ########################SUBS AND PUBS####################################################
