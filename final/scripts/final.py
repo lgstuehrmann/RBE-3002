@@ -216,10 +216,10 @@ def pointWest(point):
     return output
 
 def pointNorthwest(point): 
-    return pointEast(pointNorth(point))
+    return pointWest(pointNorth(point))
 
 def pointNortheast(point): 
-    return pointWest(pointNorth(point))
+    return pointEast(pointNorth(point))
 
 def pointSouthwest(point):
     return pointWest(pointSouth(point))
