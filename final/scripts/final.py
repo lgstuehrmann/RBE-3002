@@ -102,7 +102,7 @@ def getStart(_startPos):
 
     point = getWorldPointFromIndex(startIndex)
     
-    startIndex = getIndexFromWorldPoint(startPosX, startPosY)
+    
     print "Printing start pose"
     print startPos.pose.pose
     point = getWorldPointFromIndex(startIndex)
@@ -401,67 +401,14 @@ def reconPath(current, start):
         total_path.append(current.cameFrom)     
              
     return total_path
-"""
-def aStar(theMap, goalNode):
-    global noroutefound
-    noroutefound = False
-    global G
-    G = list()
-    initMap(mapgrid)  # add all nodes to grah, link all nodes
-
-    global path 
-    path = list()
-    global openSet
-    global closedSet
-    global eightconnected
-
-    global traversal
-    traversal = list()
-    global frontier
-    frontier = list()
-
-    openSet = list()
-    openSet.append(G[startIndex])        #Add first node to openSet # set priority to distance
-    closedSet = list()         #everything that has been examined
-    
-    print "start a*"
-    
-    print len(openSet)
-    #print openSet[0].index
-
-    while openSet:  
-
-        try:
-
-            i = lowestInQ(openSet) 
-            current = G[i]
-            if current in frontier: 
-                frontier.remove(current)
-            #print G[i].cameFrom
-            if (current.index == goalIndex): 
-                print reconPath(current, G[startIndex])
-                                
-                return reconPath(current, startIndex)
-                pass
-            openSet.remove(current)
-            closedSet.append(current)       
-            adjCellList = adjCellCheck(current)
-            if adjCellList:
-                for node in adjCellList:
-                    if node not in closedSet:
-                        frontier.append(node)
-                        publishFrontier(frontier)
-        except KeyboardInterrupt: 
-            break
-    
-    print "No route to goal"
-"""
 
 def aStar(aMap, goalNode):
     global noroutefound
     noroutefound = False
     global G
     G = aMap
+
+    global startIndex
 
     global openSet
     global closedSet
