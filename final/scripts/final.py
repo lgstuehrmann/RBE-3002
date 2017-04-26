@@ -849,12 +849,12 @@ def spinWheels(u1, u2, time):
 def driveStraight(speed, distance):
     global pose
 
-    px = pose.pose.position.x
+    px = pose.position.x
     desx = px+distance
     rob_pos = Twist()
     there = False
     while(not there):
-        nowx = pose.pose.position.x
+        nowx = pose.position.x
         newdist = abs(nowx - px)
         print str(newdist)+','+str(distance)
         if(newdist >= distance):
@@ -1014,7 +1014,7 @@ def navWithAStar(path):
         phi=numpy.arctan(desy/desx)
         thisphi = numpy.arctan(thisy/thisx)
         angletoRotate = ((math.pi)-phi)-thisphi
-        rotate(angletoRotate)
+        rotateDeg(angletoRotate)
         driveStraight(0.25, distancetoTraverse)
         donePoses.append(newPose)
         posePath.remove(newPose)
@@ -1065,7 +1065,7 @@ if __name__ == '__main__':
     rospy.sleep(2)
 
     print "Starting initial Mapping!"
-
+    
     while (1 and not rospy.is_shutdown()):
 
         publishCells(mapData) #publishing map data every 2 seconds
@@ -1079,10 +1079,10 @@ if __name__ == '__main__':
 
             publishWaypoints(getWaypoints(path))#publish waypoints
             
-            #navWithAStar(path)
+            navWithAStar(path)
             
-            while (1):
-                print "I should not be moving anymore"    
+
+            print "I should not be moving anymore"    
 
             print "Done!"
             goalRead = False
