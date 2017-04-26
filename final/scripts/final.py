@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-
 import rospy, tf, math, numpy
 import heapq
 import copy
@@ -11,7 +10,6 @@ from kobuki_msgs.msg import BumperEvent
 from std_msgs.msg import String
 from tf.transformations import euler_from_quaternion
 from heapdict import heapdict
-# Add additional imports for each of the message types used
 
 wheel_base = 0.2286 #m
 wheel_diam = 0.07 #m
@@ -128,7 +126,6 @@ def getIndexFromPoint(x,y):
     return int(((y)*width) + x)
 
 #returns in meters the point of the current index
-
 def getWorldPointFromIndex(index):
     
     global Point
@@ -286,10 +283,7 @@ def connectNeighbors(index, eightconnected):
         if(isInMap(pointWest(currentPoint))):
             myPoint = pointWest(currentPoint)
             adjList.append(getIndexFromPoint(myPoint.x,myPoint.y))
-        
-
- #----------------- Diagonals -------------------------------# 
-    
+#----------------- Diagonals -------------------------------# 
     if(isInMap(pointNorthwest(currentPoint))): 
         myPoint = pointNorthwest(currentPoint)
         adjList.append(getIndexFromPoint(myPoint.x,myPoint.y))
@@ -558,7 +552,6 @@ def publishWaypoints(grid):
 def publishCells(grid):
     global pub
     #print "publishing"
-
     # resolution and offset of the map
     k=0
     cells = GridCells()
@@ -659,40 +652,6 @@ def publishObs(grid, mapresolution):
         cells.cells.append(point)
 
     pub_obs.publish(cells)
-
-"""
-def padObstacles(map):
-
-    global obstaclepublisher
-
-    print "padding nodes"
-    nodesPadded = 0
-    robotSize = 0.25
-    obstacles = list()
-    obstacleMap = list()
-
-    obstacleMap = (node for node in G if node.val>40)
-
-    for obsnode in obstacleMap:
-        obsx = obsnode.point.x
-        obsy = obsnode.point.y
-
-        for distance in range(0, 5):
-
-            try:
-
-
-                aStar
-
-                if(isInMapXY(obsx - distance*resolution, obsy)):
-                    eastindex = getIndexFromWorldPoint(obsx + distance*resolution, obsy)
-                    east = G[eastindex]
-                    if(east.weight < obsnode.val):
-                        east.weight = obsnode.val
-
-                    obstacles.append(east)
-
-"""
 
 def isInMapXY(x, y):
     #catch if point is negative
@@ -947,7 +906,6 @@ def rotateDeg(angle):
     global pose
     global theta
     
-
     angle= angle + math.degrees(pose.orientation.z)
 ####mod it by 360 so it never overturns
     if (angle > 180):
@@ -975,19 +933,12 @@ def rotateDeg(angle):
         
     publishTwist(0,0)
 
-#This function works the same as rotate how ever it does not publish linear velocities.
-def driveArc(radius, speed, angle):
-    pass  # Delete this 'pass' once implemented
-
 #This function takes angular and linear speeds and publishes them to a twist-type message
 def publishTwist(linearvalue, angularvalue):
-
     global pubtwist
-
     twist = Twist()
     twist.linear.x = linearvalue
     twist.angular.z = angularvalue
-
     pubtwist.publish(twist)
 
 #Bumper Event Callback function
@@ -996,17 +947,6 @@ def readBumper(msg):
     if (msg.state == 1):
         print "boop"
         bumper = 1
-
-# (Optional) If you need something to happen repeatedly at a fixed interval, write the code here.
-# Start the timer with the following line of code: 
-
-def timerCallback(event):
-    global pose
-    pose = Pose()
-
-    (position, orientation) = odom_list.lookupTransform('...','...', rospy.Time(0)) #finds the position and oriention of two objects relative to each other (hint: this returns arrays, while Pose uses lists)
-    
-    pass # Delete this 'pass' once implemented
 
 def navWithAStar(path):
     global pose 
@@ -1057,11 +997,7 @@ def navWithAStar(path):
         donePoses.append(newPose)
         posePath.remove(newPose)
 
-
-# This is the program's main function
 if __name__ == '__main__':
-
-    # These are global variables. Write "global <variable_name>" in any other function to gain access to these global variables 
     global pub
     global pose
     pose = Pose()
@@ -1082,15 +1018,10 @@ if __name__ == '__main__':
     global goal_pub
     global expandedPath
     expandedPath = list()
-
     bumper = 0
 
-    # Change this node name to include your username
-    rospy.init_node('lab4')
+    rospy.init_node('final')
 
-    # Replace the elipses '...' in the following lines to set up the publishers and subscribers the lab requires
-    
-    
     bumper_sub = rospy.Subscriber('mobile_base/events/bumper', BumperEvent, readBumper, queue_size=1) # Callback function to handle bumper events
     sub = rospy.Subscriber('/map', OccupancyGrid, mapCallBack)
     pub = rospy.Publisher('/mapcheck', GridCells) # Publisher for commanding robot motion
@@ -1098,33 +1029,22 @@ if __name__ == '__main__':
     pubway = rospy.Publisher('/waypoints', GridCells, queue_size=1)
     pubtwist = rospy.Publisher('cmd_vel_mux/input/teleop', Twist, None, queue_size = 10)
     odomSub = rospy.Subscriber('odom', Odometry, readOdom, queue_size = 5)
-
     goal_sub = rospy.Subscriber('/goalpose', PoseStamped, readGoal)
     pub_traverse = rospy.Publisher('/traversal', GridCells, queue_size=1)
     pub_frontier = rospy.Publisher('/frontier', GridCells, queue_size=1)
     start_sub = rospy.Subscriber("/startpose", PoseWithCovarianceStamped, getStart, queue_size=1) #change topic for best results
     goal_pub = rospy.Publisher("/goalpose", PoseStamped, queue_size=1)
     pub_obs = rospy.Publisher("/obstacles", GridCells)
-
-
-    # wait a second for publisher, subscribers, and TF
-    
-    # Use this object to get the robot's Odometry 
     
     rospy.Timer(rospy.Duration(.01), readOdom)
     odom_list = tf.TransformListener()
     odom_tf = tf.TransformBroadcaster()
     odom_tf.sendTransform((0, 0, 0),(0, 0, 0, 1), rospy.Time.now(),"base_footprint","odom")
-
-
     rospy.sleep(2)
 
-    # Use this command to make the program wait for some seconds
-    
     print "Starting initial Mapping!"
 
     while (1 and not rospy.is_shutdown()):
-
 
         publishCells(mapData) #publishing map data every 2 seconds
         if startRead and goalRead:
@@ -1140,28 +1060,8 @@ if __name__ == '__main__':
             #navWithAStar(path)
             
             while (1):
-                print "I should not be moving anymore"
-
-            
+                print "I should not be moving anymore"    
 
             print "Done!"
             goalRead = False
         rospy.sleep(2)
-
-    #while (bumper == 0):
-    #    print bumper
-
-    #executeTrajectory()
-        #rospy.sleep(0.5)
-    #make the robot keep doing something...
-    #rospy.Timer(rospy.Duration(1), timerCallback)
-
-
-    #spinWheels(0.2, 0.5, 5)
-    #driveStraight(.3, 0.25)
-    #rotate(-0.5)
-    #executeTrajectory()
-    #readBumper()
-
-    # Make the robot do stuff...
-
