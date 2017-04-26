@@ -35,7 +35,7 @@ class PQueue:
             return heapq.heappop(self._queue)[-1]
 
 class aNode:
-    def __init__(self, index, val, hestimate, gcost):
+    def __init__(self, index, val, hestimate, gcost, adjacent):
         self.index = index
         self.point = getWorldPointFromIndex(index)
         self.val = val
@@ -296,6 +296,7 @@ def connectNeighbors(index, eightconnected):
             myPoint = pointWest(currentPoint)
             adjList.append(getIndexFromPoint(myPoint.x,myPoint.y))
 #----------------- Diagonals -------------------------------# 
+
     if(isInMap(pointNorthwest(currentPoint))): 
         myPoint = pointNorthwest(currentPoint)
         adjList.append(getIndexFromPoint(myPoint.x,myPoint.y))
@@ -336,13 +337,15 @@ def initMap(_mapGrid):
     frontier = list()
 
     for i in range(0, width*height):
-        node = aNode(i,mapData[i],0,0.0)
+        node = aNode(i,mapData[i],heuristic(i),0,0.0)
         G.append(node) 
         frontier.append(0)
     
     #TODO Fix expand obs 
     expandedMap = list()
     expandedMap = padObstacles(newMap)
+
+    padObstacles(G)
     
     print "map created" 
     return expandedMap
