@@ -10,6 +10,7 @@ from geometry_msgs.msg import PoseStamped, Pose, Point, PoseWithCovarianceStampe
 from kobuki_msgs.msg import BumperEvent
 from std_msgs.msg import String
 from tf.transformations import euler_from_quaternion
+from heapdict import heapdict
 # Add additional imports for each of the message types used
 
 wheel_base = 0.2286 #m
@@ -36,7 +37,7 @@ class PQueue:
             return heapq.heappop(self._queue)[-1]
 
 class aNode:
-    def __init__(self, index, val, hestimate, gcost, adjacent):
+    def __init__(self, index, val, hestimate, gcost):
         self.index = index
         self.point = getWorldPointFromIndex(index)
         self.val = val
@@ -186,40 +187,40 @@ def isInMap(point):
         return False
 
 #returns index of point above this one, only works for non-first row
-def pointAbove(point):
+def pointNorth(point):
     output = copy.deepcopy(point)
     output.y += 1
     return output
 
 #returns index of point below this one, only works for non-last row
-def pointBelow(point):
+def pointSouth(point):
     output = copy.deepcopy(point)
     output.y -= 1
     return output
 
 #returns index of point right of this one, only works for non-last column
-def pointRight(point):
+def pointEast(point):
     output = copy.deepcopy(point)
     output.x += 1
     return output
 
 #returns index of point right of this one, only works for non-first column
-def pointLeft(point):
+def pointWest(point):
     output = copy.deepcopy(point)
     output.x -= 1
     return output
 
-def pUL(point): 
-    return pointRight(pointAbove(point))
+def pointNortheast(point): 
+    return pointEast(pointNorth(point))
 
-def pUR(point): 
-    return pointLeft(pointAbove(point))
+def pointNorthwest(point): 
+    return pointWest(pointNorth(point))
 
-def pBL(point): 
-    return pointLeft(pointBelow(point))
+def pointSouthwest(point): 
+    return pointWest(pointSouth(point))
 
-def pBR(point): 
-    return pointRight(pointBelow(point)) 
+def pointSoutheast(point): 
+    return pointEast(pointSouth(point)) 
 
 def linkMap():   
     for i in range(0, height*width):
@@ -254,6 +255,69 @@ def linkMap():
             #print "My Point X: %i Y: %i  calc Index: %i" % (myPoint.x, myPoint.y,getIndexFromPoint(myPoint.x,myPoint.y))
             G[i].appendAdjacent(getIndexFromPoint(myPoint.x,myPoint.y))
 
+def connectNeighbors(index, eightconnected):
+    adjList = list() 
+
+    currentPoint = Point()
+    currentPoint.x = getX(index)
+    currentPoint.y = getY(index)
+    
+    if eightconnected:
+        #print "I is %i, x is %i, y is %i" % (i, currentPoint.x, currentPoint.y)
+        # try adding north
+        if(isInMap(pointNorth(currentPoint))):  
+            myPoint = pointNorth(currentPoint)
+            adjList.append(getIndexFromPoint(myPoint.x,myPoint.y))
+        currentPoint.x = getX(index)
+        currentPoint.y = getY(index)
+        # try adding east
+        if(isInMap(pointEast(currentPoint))):
+            myPoint = pointEast(currentPoint)
+            adjList.append(getIndexFromPoint(myPoint.x,myPoint.y))
+        currentPoint.x = getX(index)
+        currentPoint.y = getY(index)
+        # try adding south
+        if(isInMap(pointSouth(currentPoint))):
+            myPoint = pointSouth(currentPoint)
+            adjList.append(getIndexFromPoint(myPoint.x,myPoint.y))
+        currentPoint.x = getX(index)
+        currentPoint.y = getY(index)
+        # try adding west
+        if(isInMap(pointWest(currentPoint))):
+            myPoint = pointWest(currentPoint)
+            adjList.append(getIndexFromPoint(myPoint.x,myPoint.y))
+        
+
+ #----------------- Diagonals -------------------------------# 
+    
+    if(isInMap(pointNorthwest(currentPoint))): 
+        myPoint = pointNorthwest(currentPoint)
+        adjList.append(getIndexFromPoint(myPoint.x,myPoint.y))
+
+    currentPoint.x = getX(index)
+    currentPoint.y = getY(index)
+    # try adding east
+    if(isInMap(pointNortheast(currentPoint))):
+        myPoint = pointNortheast(currentPoint)     
+        adjList.append(getIndexFromPoint(myPoint.x,myPoint.y))
+
+    currentPoint.x = getX(index)
+    currentPoint.y = getY(index)
+    # try adding south
+    if(isInMap(pointSouthwest(currentPoint))):
+        myPoint = pointSouthwest(currentPoint)     
+        adjList.append(getIndexFromPoint(myPoint.x,myPoint.y))
+
+    currentPoint.x = getX(index)
+    currentPoint.y = getY(index)
+    # try adding west
+    if(isInMap(pointSoutheast(currentPoint))):
+        myPoint = pointSoutheast(currentPoint)
+        adjList.append(getIndexFromPoint(myPoint.x,myPoint.y))
+
+
+    return adjList
+"""
 def initMap(): 
     global frontier
     for i in range(0, width*height):
@@ -265,6 +329,27 @@ def initMap():
     
     print len(G)    
     linkMap()
+"""
+def initMap(_mapGrid):
+
+    newMap = list()
+
+    print "creating map"
+    global frontier
+    frontier = list()
+
+    for i in range(0, width*height):
+        node = aNode(i,mapData[i],0,0.0)
+        newMap.append(node) 
+        frontier.append(0)
+    
+    #TODO Fix expand obs 
+    expandedMap = list()
+    expandedMap = padObstacles(newMap)
+    
+    print "map created" 
+    return expandedMap
+
 
 def calcG(currentG, neighborG):
     if (neighborG == 0): 
@@ -274,107 +359,17 @@ def calcG(currentG, neighborG):
 def adjCellCheck(current):
     global adjList
     global traversal
-    global eightconnected
 
-    adjList =  current.adjacent ## list of indexes of neighbor 
+    #adjList =  current.adjacent ## list of indexes of neighbor 
+    adjList = connectNeighbors(current.index, False)
     for index in adjList:
         currCell = G[index] 
-        if(currCell.weight != 100): 
+
+        if(currCell.weight != -1) and (currCell.weight <= 93): 
             evalNeighbor(currCell, current) 
             traversal.append(G[index])
-        if index == goalIndex:
-            print "Goooooooooaaaaaaaallllllllll"
-            break
     
     publishTraversal(traversal)
-
-"""
-
-    if (connection and True):
-        adjList = eightConnector(current.index)
-        for index in adjList:
-            currCell = G[index]
-            if (currCell.weight != -1) and (currCell.weight <= 93):   #checks if cell is reachable  
-                evalNeighbor(currCell, current) # evaluates the neighbor 
-                traversal.append(G[index])
-
-        
-    else:
-        adjList =  current.adjacent ## list of indexes of neighbor 
-        for index in adjList:
-            currCell = G[index] 
-            if(currCell.weight != 100): 
-                evalNeighbor(currCell, current) 
-                traversal.append(G[index])
-            if index == goalIndex:
-                print "Goooooooooaaaaaaaallllllllll"
-                break
-"""
-
-
-
-def eightConnector(index):
-    adjList =  list()
-    currentPoint = Point()
-    currentPoint.x = getX(index)
-    currentPoint.y = getY(index)
-    
-        #print "I is %i, x is %i, y is %i" % (i, currentPoint.x, currentPoint.y)
-        # try adding north
-    if(isInMap(pointAbove(currentPoint))):  
-        myPoint = pointAbove(currentPoint)
-        adjList.append(getIndexFromPoint(myPoint.x,myPoint.y))
-    currentPoint.x = getX(index)
-    currentPoint.y = getY(index)
-        # try adding east
-    if(isInMap(pointRight(currentPoint))):
-        myPoint = pointRight(currentPoint)
-        adjList.append(getIndexFromPoint(myPoint.x,myPoint.y))
-    currentPoint.x = getX(index)
-    currentPoint.y = getY(index)
-        # try adding south
-    if(isInMap(pointBelow(currentPoint))):
-        myPoint = pointBelow(currentPoint)
-        adjList.append(getIndexFromPoint(myPoint.x,myPoint.y))
-    currentPoint.x = getX(index)
-    currentPoint.y = getY(index)
-        # try adding west
-    if(isInMap(pointLeft(currentPoint))):
-        myPoint = pointLeft(currentPoint)
-        adjList.append(getIndexFromPoint(myPoint.x,myPoint.y))
-        
-
- #----------------- Diagonals -------------------------------# 
-    
-    if(isInMap(pUL(currentPoint))): 
-        myPoint = pUL(currentPoint)
-        adjList.append(getIndexFromPoint(myPoint.x,myPoint.y))
-
-    currentPoint.x = getX(index)
-    currentPoint.y = getY(index)
-    # try adding east
-    if(isInMap(pUR(currentPoint))):
-        myPoint = pUR(currentPoint)     
-        adjList.append(getIndexFromPoint(myPoint.x,myPoint.y))
-
-    currentPoint.x = getX(index)
-    currentPoint.y = getY(index)
-    # try adding south
-    if(isInMap(pBL(currentPoint))):
-        myPoint = pBL(currentPoint)     
-        adjList.append(getIndexFromPoint(myPoint.x,myPoint.y))
-
-    currentPoint.x = getX(index)
-    currentPoint.y = getY(index)
-    # try adding west
-    if(isInMap(pBR(currentPoint))):
-        myPoint = pBR(currentPoint)
-        adjList.append(getIndexFromPoint(myPoint.x,myPoint.y))
-
-
-    return adjList
-
-
 
 def evalNeighbor(nNode, current): #check to see if in the closed set
     if(nNode not in closedSet): 
@@ -406,12 +401,13 @@ def reconPath(current, start):
         total_path.append(current.cameFrom)     
              
     return total_path
-
-def aStar():
-    
+"""
+def aStar(theMap, goalNode):
+    global noroutefound
+    noroutefound = False
     global G
     G = list()
-    initMap()  # add all nodes to grah, link all nodes
+    initMap(mapgrid)  # add all nodes to grah, link all nodes
 
     global path 
     path = list()
@@ -459,6 +455,54 @@ def aStar():
             break
     
     print "No route to goal"
+"""
+
+def aStar(aMap, goalNode):
+    global noroutefound
+    noroutefound = False
+    global G
+    G = aMap
+
+    global openSet
+    global closedSet
+
+    global traversal
+    traversal = list()
+    global frontier
+    frontier = list()
+
+    #openSet = list()
+    openSet = heapdict()
+    startIndex = getIndexFromWorldPoint(pose.position.x, pose.position.y) 
+    openSet[startIndex] = G[startIndex].f  
+    # openSet.append(G[startIndex])        #Add first node to openSet # set priority to distance
+    closedSet = list()         #everything that has been examined
+    
+    print "start a*"
+    
+    print len(openSet)
+    #print openSet[0].index
+
+    while openSet:  # true when openSet (the frontier) is not empty, if open set is empty, that means no path can be found  
+
+        try:  # exception handler so that you can cntrl^c the program  
+            pop = openSet.popitem()         
+            i = pop[0]     #find the node index/identifier of node in openSet with lowest travel cost 
+            current = G[i]            
+            if current in frontier:    # this is for graphical representation in rviz 
+                frontier.remove(current)
+            #print G[i].cameFrom
+            if finalCheck(current.index, goalNode):   # (current.index == goalIndex):         # found the destination 
+                return reconPath(current, startIndex)
+                #pass 
+            
+            closedSet.append(current)        # add current node to closedSet (list of visited nodes) 
+            adjCellList = adjCellCheck(current)      # look at neihboring nodes and add them to openset 
+        except KeyboardInterrupt: 
+            pass
+    
+    print "No route to goal"
+    noroutefound = True
 
 def getWaypoints(path): #calculate waypoints from optimal path
     
@@ -661,7 +705,7 @@ def isInMapXY(x, y):
         print "not in map"
         return False
 
-def padObstacles(map):
+def padObstacles(_inputmap):
 
     global robot_size
 
@@ -672,7 +716,9 @@ def padObstacles(map):
     obstacles = list()
     map_obs = list()
 
-    map_obs = (node for node in G if node.val > 40)
+    for node in _inputmap:
+        if node.val > 40:
+            map_obs.append(node)
     for obsnode in map_obs:
         obsx = obsnode.point.x
         obsy = obsnode.point.y
@@ -682,28 +728,28 @@ def padObstacles(map):
             try:
                 if(isInMapXY(obsx + distance*resolution, obsy)):
                     eastindex = getIndexFromWorldPoint(obsx + distance*resolution, obsy)
-                    east = G[eastindex]
+                    east = _inputmap[eastindex]
                     if(east.weight < obsnode.val):
                         east.weight = obsnode.val
                     obstacles.append(east)
                     obstaclesPadded = obstaclesPadded + 1
                 if(isInMapXY(obsx - distance*resolution, obsy)):
                     westindex = getIndexFromWorldPoint(obsx - distance*resolution, obsy)
-                    west = G[westindex]
+                    west = _inputmap[westindex]
                     if(west.weight < obsnode.val):
                         west.weight = obsnode.val
                     obstacles.append(west)
                     obstaclesPadded = obstaclesPadded + 1
                 if(isInMapXY(obsx,obsy + distance*resolution)):
                     northindex =  getIndexFromWorldPoint(obsx,obsy + distance*resolution)
-                    north = G[northindex]
+                    north = _inputmap[northindex]
                     if(north.weight < obsnode.val):
                         north.weight = obsnode.val
                     obstacles.append(north)
                     obstaclesPadded = obstaclesPadded + 1
                 if(isInMapXY(obsx,obsy - distance*resolution)):
                     southindex =  getIndexFromWorldPoint(obsx,obsy - distance*resolution)
-                    south = G[southindex]
+                    south = _inputmap[southindex]
                     if(south.weight < obsnode.val):
                         south.weight = obsnode.val
                     obstacles.append(south)
@@ -711,28 +757,28 @@ def padObstacles(map):
 
                 if(isInMapXY(obsx+distance*resolution,obsy + distance*resolution)):
                     northeastindex = getIndexFromWorldPoint(obsx+distance*resolution,obsy + distance*resolution)
-                    northeast = G[northeastindex]
+                    northeast = _inputmap[northeastindex]
                     if(northeast.weight < obsnode.val):
                         northeast.weight = obsnode.val
                     obstacles.append(northeast)
                     obstaclesPadded = obstaclesPadded + 1
                 if(isInMapXY(obsx-distance*resolution,obsy + distance*resolution)):
                     northwestindex = getIndexFromWorldPoint(obsx-distance*resolution,obsy + distance*resolution)
-                    northwest = G[northwestindex]
+                    northwest = _inputmap[northwestindex]
                     if(northwest.weight < obsnode.val):
                         northwest.weight = obsnode.val
                     obstacles.append(northwest)
                     obstaclesPadded = obstaclesPadded + 1
                 if(isInMapXY(obsx+distance*resolution,obsy - distance*resolution)):
                     southeastindex = getIndexFromWorldPoint(obsx+distance*resolution,obsy - distance*resolution)
-                    southeast = G[southeastindex]
+                    southeast = _inputmap[southeastindex]
                     if(southeast.weight < obsnode.val):
                         southeast.weight = obsnode.val
                     obstacles.append(southeast)
                     obstaclesPadded = obstaclesPadded + 1
                 if(isInMapXY(obsx-distance*resolution,obsy - distance*resolution)):
                     southwestindex = getIndexFromWorldPoint(obsx-distance*resolution,obsy - distance*resolution)
-                    southwest = G[southwestindex]
+                    southwest = _inputmap[southwestindex]
                     if(southwest.weight < obsnode.val):
                         southwest.weight = obsnode.val
                     obstacles.append(southwest)
@@ -1075,21 +1121,15 @@ if __name__ == '__main__':
 
     # Use this command to make the program wait for some seconds
     
-    print "Starting Lab 4"
+    print "Starting initial Mapping!"
 
-    rotateDeg(40)
-
-    while (1 and not rospy.is_shutdown()):
-        print "done!"
-
-
-"""
     while (1 and not rospy.is_shutdown()):
 
 
         publishCells(mapData) #publishing map data every 2 seconds
         if startRead and goalRead:
-            path = aStar()
+            newMap = initMap(mapgrid)
+            path = aStar(newMap, goalIndex)
             expandedPath = expandPath(path)
             print "Going to publish path"
             publishPath(noFilter(path))
@@ -1098,7 +1138,6 @@ if __name__ == '__main__':
             publishWaypoints(getWaypoints(path))#publish waypoints
             
             #navWithAStar(path)
-            rotate(math.pi)
             
             while (1):
                 print "I should not be moving anymore"
@@ -1109,8 +1148,6 @@ if __name__ == '__main__':
             goalRead = False
         rospy.sleep(2)
 
-    print "Starting Lab 3"
-"""
     #while (bumper == 0):
     #    print bumper
 
