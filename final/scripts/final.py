@@ -415,8 +415,8 @@ def aStar(aMap, goalNode):
     #openSet = list()
     openSet = heapdict()
     startIndex = getIndexFromWorldPoint(pose.position.x, pose.position.y) 
-    openSet[startIndex] = G[startIndex].f  
-    # openSet.append(G[startIndex])        #Add first node to openSet # set priority to distance
+    openSet[startIndex] = G[startIndex].f
+        # openSet.append(G[startIndex])        #Add first node to openSet # set priority to distance
     closedSet = list()         #everything that has been examined
     
     print "start a*"
@@ -971,8 +971,8 @@ if __name__ == '__main__':
 
     bumper_sub = rospy.Subscriber('mobile_base/events/bumper', BumperEvent, readBumper, queue_size=1) # Callback function to handle bumper events
     sub = rospy.Subscriber('/map', OccupancyGrid, mapCallBack)
-    pub = rospy.Publisher('/mapcheck', GridCells) # Publisher for commanding robot motion
-    pub_path = rospy.Publisher('/path', GridCells)
+    pub = rospy.Publisher('/mapcheck', GridCells, queue_size = 10) # Publisher for commanding robot motion
+    pub_path = rospy.Publisher('/path', GridCells, queue_size = 10)
     pubway = rospy.Publisher('/waypoints', GridCells, queue_size=1)
     pubtwist = rospy.Publisher('cmd_vel_mux/input/teleop', Twist, None, queue_size = 10)
     odomSub = rospy.Subscriber('odom', Odometry, readOdom, queue_size = 5)
@@ -981,7 +981,7 @@ if __name__ == '__main__':
     pub_frontier = rospy.Publisher('/frontier', GridCells, queue_size=1)
     start_sub = rospy.Subscriber("/startpose", PoseWithCovarianceStamped, getStart, queue_size=1) #change topic for best results
     goal_pub = rospy.Publisher("/goalpose", PoseStamped, queue_size=1)
-    pub_obs = rospy.Publisher("/obstacles", GridCells)
+    pub_obs = rospy.Publisher("/obstacles", GridCells, queue_size = 10)
     
     rospy.Timer(rospy.Duration(.01), readOdom)
     odom_list = tf.TransformListener()
