@@ -877,6 +877,8 @@ def navWithAStar(path):
         newPose.orientation.w = 0
         posePath.append(newPose)
     
+    print posePath
+    rospy.sleep(50)
     donePoses = list()
 
     for nextpose in posePath:
@@ -897,7 +899,10 @@ def navWithAStar(path):
         rospy.sleep(2)
         driveStraight(0.25, distancetoTraverse)
         donePoses.append(newPose)
-        posePath.remove(newPose)
+        try:
+            posePath.remove(newPose)
+        except ValueError:
+            pass
 
 if __name__ == '__main__':
     global pub
