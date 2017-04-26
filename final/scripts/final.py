@@ -761,14 +761,6 @@ def readOdom(event):
 
     #pose = msg.pose
 
-#This function sequentially calls methods to perform a trajectory.
-def executeTrajectory():
-
-    driveStraight(0.3, 0.06)
-    rotate(1.6)
-    driveStraight(0.3, 0.045)
-    rotate(-2.4)
-
 #This function accepts two wheel velocities(linear in in/s) and a time interval(s).
 def spinWheels(u1, u2, time):
     global pub
@@ -809,62 +801,6 @@ def driveStraight(speed, distance):
     
     print "done straight"
    
-#Accepts an angle and makes the robot rotate around it.
-def rotate(angle):
-    print "in rotate"
-
-    global pose
-
-    rob_pos = Twist()
-    #Had to separate out the quaternion because it was geometry_msgs, not transform
-    quaternion = (
-        pose.orientation.x,
-        pose.orientation.y,
-        pose.orientation.z,
-        pose.orientation.w)
-    initeuler = tf.transformations.euler_from_quaternion(quaternion)
-    inityaw = initeuler[2]
-    print inityaw
-    print angle
-
-    there = False
-    while(not there):
-        currquaternion = (
-            pose.orientation.x,
-            pose.orientation.y,
-            pose.orientation.z,
-            pose.orientation.w)
-        curreuler = tf.transformations.euler_from_quaternion(currquaternion)
-        curryaw = curreuler[2]
-        newang = abs(curryaw - inityaw)
-
-        error = angle - pose.orientation.z
-
-        print str(error) +','+ str(angle)
-        if(angle >= 0):
-            if(newang >= angle):
-                there = True
-                rob_pos.angular.z = 0
-                pubtwist.publish(rob_pos)
-                break
-            else:
-                rob_pos.angular.z = .5
-                pubtwist.publish(rob_pos)
-                
-        else:
-            if(abs(newang) >= abs(angle)):
-                there = True
-                rob_pos.angular.z = 0
-                pubtwist.publish(rob_pos)
-                break
-            else:
-                rob_pos.angular.z = -.5
-                pubtwist.publish(rob_pos)
-                
-
-    print "done angle"
-
-
 def rotateDeg(angle):
     global odom_list
     global pose
@@ -956,7 +892,9 @@ def navWithAStar(path):
         phi=numpy.arctan(desy/desx)
         thisphi = numpy.arctan(thisy/thisx)
         angletoRotate = ((math.pi)-phi)-thisphi
-        rotateDeg(angletoRotate)
+        rotateDeg(numpy.degrees(angletoRotate))
+        print "Done Rotate"
+        rospy.sleep(2)
         driveStraight(0.25, distancetoTraverse)
         donePoses.append(newPose)
         posePath.remove(newPose)
@@ -1007,7 +945,7 @@ if __name__ == '__main__':
     rospy.sleep(2)
 
     print "Starting initial Mapping!"
-    
+
     while (1 and not rospy.is_shutdown()):
 
         publishCells(mapData) #publishing map data every 2 seconds
