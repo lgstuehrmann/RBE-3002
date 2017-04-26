@@ -93,8 +93,8 @@ def getStart(_startPos):
     global startIndex
 
     startPos = _startPos
-    startPosX = startPos.pose.pose.position.x
-    startPosY = startPos.pose.pose.position.y
+    startPosX = 0 #startPos.pose.pose.position.x
+    startPosY = 0 #startPos.pose.pose.position.y
 
     startIndex = getIndexFromWorldPoint(startPosX, startPosY)
 
