@@ -877,6 +877,8 @@ def navWithAStar(path):
         newPose.orientation.w = 0
         posePath.append(newPose)
     
+    print posePath
+    rospy.sleep(50)
     donePoses = list()
 
     for nextpose in posePath:
@@ -897,7 +899,15 @@ def navWithAStar(path):
         rospy.sleep(2)
         driveStraight(0.25, distancetoTraverse)
         donePoses.append(newPose)
-        posePath.remove(newPose)
+        try:
+            posePath.remove(newPose)
+        except ValueError:
+            pass
+
+def readMap(msg):
+    global ObservedMap
+    ObservedMap = msg
+
 
 if __name__ == '__main__':
     global pub
@@ -922,22 +932,29 @@ if __name__ == '__main__':
     expandedPath = list()
     bumper = 0
 
-    rospy.init_node('final')
+    global ObservedMap
 
+    rospy.init_node('final')
+    ########################SUBS AND PUBS####################################################
     bumper_sub = rospy.Subscriber('mobile_base/events/bumper', BumperEvent, readBumper, queue_size=1) # Callback function to handle bumper events
     sub = rospy.Subscriber('/map', OccupancyGrid, mapCallBack)
-    pub = rospy.Publisher('/mapcheck', GridCells, queue_size = 10) # Publisher for commanding robot motion
-    pub_path = rospy.Publisher('/path', GridCells, queue_size = 10)
-    pubway = rospy.Publisher('/waypoints', GridCells, queue_size=1)
-    pubtwist = rospy.Publisher('cmd_vel_mux/input/teleop', Twist, None, queue_size = 10)
     odomSub = rospy.Subscriber('odom', Odometry, readOdom, queue_size = 5)
     goal_sub = rospy.Subscriber('/goalpose', PoseStamped, readGoal)
-    pub_traverse = rospy.Publisher('/traversal', GridCells, queue_size=1)
-    pub_frontier = rospy.Publisher('/frontier', GridCells, queue_size=1)
     start_sub = rospy.Subscriber("/startpose", PoseWithCovarianceStamped, getStart, queue_size=1) #change topic for best results
+    
     goal_pub = rospy.Publisher("/goalpose", PoseStamped, queue_size=1)
     pub_obs = rospy.Publisher("/obstacles", GridCells, queue_size = 10)
+    pub = rospy.Publisher('/mapcheck', GridCells, queue_size = 10) # Publisher for commanding robot motion
+    pub_frontier = rospy.Publisher('/frontier', GridCells, queue_size=1)
+    pubway = rospy.Publisher('/waypoints', GridCells, queue_size=1)
+    pub_path = rospy.Publisher('/path', GridCells, queue_size = 10)
+    pubtwist = rospy.Publisher('cmd_vel_mux/input/teleop', Twist, None, queue_size = 10)
+    pub_traverse = rospy.Publisher('/traversal', GridCells, queue_size=1)
+
+    #########################MAPPING WITH LASERSCANS##########################################
+    laser_sub = rospy.Subscriber('base_scan', OccupancyGrid, readMap)
     
+    ##########################ODOM###########################################################
     rospy.Timer(rospy.Duration(.01), readOdom)
     odom_list = tf.TransformListener()
     odom_tf = tf.TransformBroadcaster()
@@ -966,4 +983,18 @@ if __name__ == '__main__':
 
             print "Done!"
             goalRead = False
+
+
+    ''' Final Main - In Progress
+    enclosed = false
+    while not enclosed:
+        scanEnviron()
+        getFarthestFrontier()
+        path = AstarToFrontier()
+        navWithAStar(path)
+        if(finalFrontier()):
+            enclosed = True
+            print "finished scanning"
+
+    '''
         rospy.sleep(2)
