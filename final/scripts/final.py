@@ -167,10 +167,6 @@ def finalCheck(cIndex, fIndex):
     else: 
         return False
 
-def findConnected(node):
-    neighborhood = G.neighbors(node)
-    return neighborhood
-
 #returns the x value of the index
 def getX(index):
     adjusted = index + 1
@@ -219,13 +215,13 @@ def pointWest(point):
     output.x -= 1
     return output
 
-def pointNortheast(point): 
+def pointNorthwest(point): 
     return pointEast(pointNorth(point))
 
-def pointNorthwest(point): 
+def pointNortheast(point): 
     return pointWest(pointNorth(point))
 
-def pointSouthwest(point): 
+def pointSouthwest(point):
     return pointWest(pointSouth(point))
 
 def pointSoutheast(point): 
@@ -327,6 +323,7 @@ def connectNeighbors(index, eightconnected):
 
 def initMap(_mapGrid):
 
+    initObs()
     newMap = list()
     global G
 
@@ -361,7 +358,7 @@ def adjCellCheck(current):
     global traversal
 
     #adjList =  current.adjacent ## list of indexes of neighbor 
-    adjList = connectNeighbors(current.index, False)
+    adjList = connectNeighbors(current.index, True)
     for index in adjList:
         currCell = G[index] 
 
@@ -402,68 +399,6 @@ def reconPath(current, start):
              
     return total_path
 
-"""
-def aStar(aMap, goalNode):
-    global noroutefound
-    noroutefound = False
-    global G
-    
-    global startIndex
-
-    global openSet
-    global closedSet
-
-    global traversal
-    traversal = list()
-    global frontier
-    frontier = list()
-
-<<<<<<< HEAD
-    openSet = list()
-    #openSet = heapdict()
-    #startIndex = getIndexFromWorldPoint(pose.position.x, pose.position.y) 
-
-    print "this is the startindex"
-    print startIndex
-
-    #openSet[startIndex] = G[startIndex].f
-    openSet.append(G[startIndex])
-    # openSet.append(G[startIndex])        #Add first node to openSet # set priority to distance
-=======
-    #openSet = list()
-    openSet = heapdict()
-    startIndex = getIndexFromWorldPoint(pose.position.x, pose.position.y) 
-    openSet[startIndex] = G[startIndex].f
-        # openSet.append(G[startIndex])        #Add first node to openSet # set priority to distance
->>>>>>> d20364382c426223bc8b210568531e6f2d4df046
-    closedSet = list()         #everything that has been examined
-    
-    print "start a*"
-    
-    print len(openSet)
-    #print openSet[0].index
-
-    while openSet:  # true when openSet (the frontier) is not empty, if open set is empty, that means no path can be found  
-
-        try:  # exception handler so that you can cntrl^c the program  
-            pop = openSet.popitem()         
-            i = pop[0]     #find the node index/identifier of node in openSet with lowest travel cost 
-            current = G[i]            
-            if current in frontier:    # this is for graphical representation in rviz 
-                frontier.remove(current)
-            #print G[i].cameFrom
-            if finalCheck(current.index, goalNode):   # (current.index == goalIndex):         # found the destination 
-                return reconPath(current, startIndex)
-                #pass 
-            
-            closedSet.append(current)        # add current node to closedSet (list of visited nodes) 
-            adjCellList = adjCellCheck(current)      # look at neihboring nodes and add them to openset 
-        except KeyboardInterrupt: 
-            pass
-    
-    print "No route to goal"
-    noroutefound = True
-"""
 
 def aStar():
     
@@ -672,6 +607,10 @@ def publishObs(grid, mapresolution):
         cells.cells.append(point)
 
     pub_obs.publish(cells)
+
+def initObs():
+    global pub_obs
+    pub_obs = rospy.Publisher('/obstacles', GridCells)
 
 def isInMapXY(x, y):
     #catch if point is negative
@@ -1073,7 +1012,7 @@ if __name__ == '__main__':
 
         publishCells(mapData) #publishing map data every 2 seconds
         if startRead and goalRead:
-            newMap = initMap(mapgrid)
+            #newMap = initMap(mapgrid)
             path = aStar()
             expandedPath = expandPath(path)
             print "Going to publish path"

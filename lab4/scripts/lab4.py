@@ -263,7 +263,7 @@ def initMap():
 
     padObstacles(G)
     
-    print len(G)    
+    #print len(G)    
     linkMap()
 
 def calcG(currentG, neighborG):
