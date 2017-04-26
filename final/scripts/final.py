@@ -99,6 +99,8 @@ def getStart(_startPos):
     startIndex = getIndexFromWorldPoint(startPosX, startPosY)
 
     point = getWorldPointFromIndex(startIndex)
+
+    startIndex = getIndexFromWorldPoint(startPosX, startPosY)
     
     
     print "Printing start pose"
@@ -154,6 +156,16 @@ def heuristic(index):
     current = getWorldPointFromIndex(index)
     h = math.sqrt(pow(goalX-current.x,2)+pow(goalY-current.y,2))
     return h
+
+def finalCheck(cIndex, fIndex): 
+    cPoint = getWorldPointFromIndex(cIndex)
+    fPoint = getWorldPointFromIndex(fIndex)
+    
+    if(abs(cPoint.x - fPoint.x) < 3*resolution): 
+        if(abs(cPoint.y - fPoint.y) < 3*resolution):
+            return True
+    else: 
+        return False
 
 def findConnected(node):
     neighborhood = G.neighbors(node)
@@ -311,22 +323,13 @@ def connectNeighbors(index, eightconnected):
 
 
     return adjList
-"""
-def initMap(): 
-    global frontier
-    for i in range(0, width*height):
-        node = aNode(i,mapData[i],heuristic(i),0.0, 0)
-        G.append(node) 
-        frontier.append(0)
 
-    padObstacles(G)
-    
-    print len(G)    
-    linkMap()
-"""
 def initMap(_mapGrid):
 
     newMap = list()
+    global G
+
+    G = list()
 
     print "creating map"
     global frontier
@@ -334,7 +337,7 @@ def initMap(_mapGrid):
 
     for i in range(0, width*height):
         node = aNode(i,mapData[i],0,0.0)
-        newMap.append(node) 
+        G.append(node) 
         frontier.append(0)
     
     #TODO Fix expand obs 
@@ -396,12 +399,12 @@ def reconPath(current, start):
              
     return total_path
 
+"""
 def aStar(aMap, goalNode):
     global noroutefound
     noroutefound = False
     global G
-    G = aMap
-
+    
     global startIndex
 
     global openSet
@@ -412,10 +415,15 @@ def aStar(aMap, goalNode):
     global frontier
     frontier = list()
 
-    #openSet = list()
-    openSet = heapdict()
-    startIndex = getIndexFromWorldPoint(pose.position.x, pose.position.y) 
-    openSet[startIndex] = G[startIndex].f  
+    openSet = list()
+    #openSet = heapdict()
+    #startIndex = getIndexFromWorldPoint(pose.position.x, pose.position.y) 
+
+    print "this is the startindex"
+    print startIndex
+
+    #openSet[startIndex] = G[startIndex].f
+    openSet.append(G[startIndex])
     # openSet.append(G[startIndex])        #Add first node to openSet # set priority to distance
     closedSet = list()         #everything that has been examined
     
@@ -444,6 +452,60 @@ def aStar(aMap, goalNode):
     
     print "No route to goal"
     noroutefound = True
+"""
+
+def aStar():
+    
+    global G
+    G = list()
+    initMap(mapgrid)  # add all nodes to grah, link all nodes
+
+    global path 
+    path = list()
+    global openSet
+    global closedSet
+    global eightconnected
+
+    global traversal
+    traversal = list()
+    global frontier
+    frontier = list()
+
+    openSet = list()
+    openSet.append(G[startIndex])        #Add first node to openSet # set priority to distance
+    closedSet = list()         #everything that has been examined
+    
+    print "start a*"
+    
+    print len(openSet)
+    #print openSet[0].index
+
+    while openSet:  
+
+        try:
+
+            i = lowestInQ(openSet) 
+            current = G[i]
+            if current in frontier: 
+                frontier.remove(current)
+            #print G[i].cameFrom
+            if (current.index == goalIndex): 
+                print reconPath(current, G[startIndex])
+                                
+                return reconPath(current, startIndex)
+                pass
+            openSet.remove(current)
+            closedSet.append(current)       
+            adjCellList = adjCellCheck(current)
+            if adjCellList:
+                for node in adjCellList:
+                    if node not in closedSet:
+                        frontier.append(node)
+                        publishFrontier(frontier)
+        except KeyboardInterrupt: 
+            break
+    
+    print "No route to goal"
 
 def getWaypoints(path): #calculate waypoints from optimal path
     
@@ -690,10 +752,15 @@ def padObstacles(_inputmap):
                     obstacles.append(southwest)
                     obstaclesPadded = obstaclesPadded + 1
 
+
+
             except IndexError:
                 pass
 
     publishObs(obstacles, resolution)
+    return _inputmap
+
+    
 
 def expandPath(path):  
     obstacles = list()
@@ -996,7 +1063,7 @@ if __name__ == '__main__':
         publishCells(mapData) #publishing map data every 2 seconds
         if startRead and goalRead:
             newMap = initMap(mapgrid)
-            path = aStar(newMap, goalIndex)
+            path = aStar()
             expandedPath = expandPath(path)
             print "Going to publish path"
             publishPath(noFilter(path))
