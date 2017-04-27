@@ -1024,10 +1024,11 @@ if __name__ == '__main__':
     while (1 and not rospy.is_shutdown()):
 
         publishCells(mapData) #publishing map data every 2 seconds
+        thingforFront = initMap(mapgrid)
+        goalCell = getFrontier(thingforFront)
+        goal_pub.publish(goalCell)#TODO: turn goalCell into something goal_pub can do shit with
+        rospy.sleep(.5)
         if startRead and goalRead:
-            thingforFront = initMap(mapgrid)
-            goalCell = getFrontier(thingforFront)
-            
             path = aStar()
             #expandedPath = expandPath(path)
             print "Going to publish path"
