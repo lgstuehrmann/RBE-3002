@@ -508,12 +508,7 @@ def getFrontier(G):
         for neighborindex in connectNeighbors(cell.index, True):
             if G[neighborindex].weight == -1 and G[neighborindex] not in frontier:
                 frontier.append(cell)
-    print "searching for edges"
-    for cell in frontier:
-        if not listCheck2D(cell, edgelist):
-            edge = findedge(cell,list(),G)
-            publishFrontier(edge)
-            edgelist.append(edge)
+                return cell
 
 
 def listCheck2D(cell, llist):
@@ -1031,7 +1026,8 @@ if __name__ == '__main__':
         publishCells(mapData) #publishing map data every 2 seconds
         if startRead and goalRead:
             thingforFront = initMap(mapgrid)
-            getFrontier(thingforFront)
+            goalCell = getFrontier(thingforFront)
+            
             path = aStar()
             #expandedPath = expandPath(path)
             print "Going to publish path"
