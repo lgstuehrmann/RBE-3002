@@ -736,7 +736,6 @@ def pubGoal(grid):
 
 def publishObs(grid, mapresolution):
     global pub_obs
-    
     k = 0
     cells = GridCells()
     cells.header.frame_id = 'map'
@@ -766,9 +765,7 @@ def isInMapXY(x, y):
         return False
 
 def padObstacles(_inputmap):
-
     global robot_size
-
     global pub_obs
     print "adding padding"
 
@@ -851,8 +848,6 @@ def padObstacles(_inputmap):
 
     publishObs(obstacles, resolution)
     return _inputmap
-
-    
 
 def expandPath(path):  
     obstacles = list()
@@ -1041,7 +1036,7 @@ if __name__ == '__main__':
     sub = rospy.Subscriber('/map', OccupancyGrid, mapCallBack)
     #odomSub = rospy.Subscriber('odom', Odometry, readOdom, queue_size = 5)
     goal_sub = rospy.Subscriber('/goalpose', PoseStamped, readGoal)
-    start_sub = rospy.Subscriber("/odom", PoseWithCovarianceStamped, getStart, queue_size=1) #change topic for best results
+    start_sub = rospy.Subscriber("/odom", PoseStamped, getStart, queue_size=1) #change topic for best results
     
     goal_pub = rospy.Publisher("/goalpose", PoseStamped, queue_size=1)
     pub_obs = rospy.Publisher("/obstacles", GridCells, queue_size = 10)
