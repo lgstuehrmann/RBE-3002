@@ -872,18 +872,23 @@ def navWithAStar(path):
         newPose.orientation.x = 0
         newPose.orientation.y = 0
         newPose.orientation.z = 0
-        newPose.orientation.w = 0
+        newPose.orientation.w = 1
         posePath.append(newPose)
     posePath.pop()
     posePath.reverse() 
     print "posePath:"
     for each in posePath:
         print each
-    rospy.sleep(60)
     donePoses = list()
 
     for nextpose in posePath:
-        goalPub.publish(nextpose)
+        poseStampedtoSend = PoseStamped()
+        poseStampedtoSend.pose = nextpose
+        poseStampedtoSend.header.seq = 1
+        poseStampedtoSend.header.stamp.secs = 1
+        poseStampedtoSend.header.stamp.nsecs = 1
+        poseStampedtoSend.header.frame_id = 'map'
+        goalPub.publish(poseStampedtoSend)
         donePoses.append(newPose)
         try:
             posePath.remove(newPose)
@@ -1000,7 +1005,6 @@ if __name__ == '__main__':
             publishWaypoints(getDouglasWaypoints(path))#publish waypoints
             print "List of Waypoints:"
             print waypoints
-            rospy.sleep(20)
             navWithAStar(path)
             
             print "I should not be moving anymore"    
