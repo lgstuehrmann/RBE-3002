@@ -15,7 +15,6 @@ Panels:
         - /Goal1
         - /Goal1/Status1
         - /Path1
-        - /Path1/Status1
         - /Frontier1
         - /Start1
         - /TraversedCells1
@@ -301,10 +300,10 @@ Visualization Manager:
     - Alpha: 1
       Class: rviz/GridCells
       Color: 25; 255; 5
-      Enabled: true
+      Enabled: false
       Name: Path
       Topic: /path
-      Value: true
+      Value: false
     - Alpha: 1
       Class: rviz/GridCells
       Color: 25; 255; 0
@@ -330,13 +329,13 @@ Visualization Manager:
     - Alpha: 1
       Class: rviz/GridCells
       Color: 255; 255; 0
-      Enabled: true
+      Enabled: false
       Name: TraversedCells
       Topic: /traversal
-      Value: true
+      Value: false
     - Alpha: 1
       Class: rviz/GridCells
-      Color: 25; 255; 0
+      Color: 50; 50; 255
       Enabled: true
       Name: Waypoints
       Topic: /waypoints
@@ -372,22 +371,22 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 12.7316
+      Distance: 12.3341
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.06
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 0.779196
-        Y: 0.670402
-        Z: -1.72994
+        X: 0.209796
+        Y: 1.56783
+        Z: -1.96777
       Name: Current View
       Near Clip Distance: 0.01
-      Pitch: 0.9798
+      Pitch: 0.4848
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 0.905393
+      Yaw: 0.0753938
     Saved: ~
 Window Geometry:
   Displays:

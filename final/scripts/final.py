@@ -91,10 +91,11 @@ def getStart(_startPos):
     global startPosY
     global startPos
     global startIndex
+    global odom_list
 
     startPos = _startPos
-    startPosX = 0 #startPos.pose.pose.position.x
-    startPosY = 0 #startPos.pose.pose.position.y
+    startPosX = pose.position.x #startPos.pose.pose.position.x
+    startPosY = pose.position.y #startPos.pose.pose.position.y
 
     startIndex = getIndexFromWorldPoint(startPosX, startPosY)
 
@@ -956,15 +957,17 @@ def navWithAStar(path):
     global newPose
 
     publishWaypoints(getDouglasWaypoints(path))
-    newpathPoints = getWaypoints(path)
+    newpathPoints = getDouglasWaypoints(path)
+
     posePath = list()
     initPose = Pose()
-    initPose.position.x = startPos.pose.pose.position.x
-    initPose.position.y = startPos.pose.pose.position.y
+    initPose.position.x = startPosX #startPos.pose.pose.position.x
+    initPose.position.y = startPosY #startPos.pose.pose.position.y
+
     initPose.position.z = 0
     initPose.orientation.x = 0
     initPose.orientation.y = 0
-    initPose.orientation.z = 0
+    initPose.orientation.z = pose.orientation.z
     initPose.orientation.w = 0
     posePath.append(initPose)
 
@@ -980,17 +983,17 @@ def navWithAStar(path):
         posePath.append(newPose)
     
     print posePath
-    rospy.sleep(50)
+    rospy.sleep(2)
     donePoses = list()
 
     for nextpose in posePath:
         #for distance
         desx = nextpose.position.x
         desy = nextpose.position.y
-        thisx = startPos.pose.pose.position.x
-        thisy = startPos.pose.pose.position.y
-        deltax = desx-thisx
-        deltay = desy-thisy
+        thisx = startPosX # startPos.pose.pose.position.x
+        thisy = startPosY # startPos.pose.pose.position.y
+        deltax = 0.1 * (desx-thisx)
+        deltay = 0.1 * (desy-thisy)
         distancetoTraverse=pow((pow(deltax,2)+pow(deltay,2)),.5)
         #for angle to rotate
         phi=numpy.arctan(desy/desx)
@@ -1012,7 +1015,8 @@ def readMap(msg):
     for each in msg.data:
         if ObservedMap.data[each] != null:
             pass
-        else ObservedMap.data[each] = msg.data[each]
+        else:
+            ObservedMap.data[each] = msg.data[each]
 
 if __name__ == '__main__':
     global pub
@@ -1075,11 +1079,13 @@ if __name__ == '__main__':
         if startRead and goalRead:
             #newMap = initMap(mapgrid)
             path = aStar()
-            expandedPath = expandPath(path)
+            #expandedPath = expandPath(path)
             print "Going to publish path"
             publishPath(noFilter(path))
             print "Publishing waypoints"
 
+            waypoints = getDouglasWaypoints(path)
+            waypoints.reverse()
             publishWaypoints(getDouglasWaypoints(path))#publish waypoints
             
             navWithAStar(path)
