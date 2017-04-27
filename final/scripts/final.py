@@ -100,13 +100,10 @@ def getStart(_startPos):
     startIndex = getIndexFromWorldPoint(startPosX, startPosY)
 
     point = getWorldPointFromIndex(startIndex)
-
-    startIndex = getIndexFromWorldPoint(startPosX, startPosY)
     
     
     print "Printing start pose"
     print startPos.pose.pose
-    point = getWorldPointFromIndex(startIndex)
     print "Calculated world position: %f, %f Index: %i" % (point.x, point.y, startIndex)
 
 def readGoal(goal):
@@ -1001,8 +998,8 @@ def navWithAStar(path):
         desy = nextpose.position.y
         thisx = startPosX # startPos.pose.pose.position.x
         thisy = startPosY # startPos.pose.pose.position.y
-        deltax = 0.1 * (desx-thisx)
-        deltay = 0.1 * (desy-thisy)
+        deltax = (desx-thisx)
+        deltay = (desy-thisy)
         distancetoTraverse=pow((pow(deltax,2)+pow(deltay,2)),.5)
         #for angle to rotate
         phi=numpy.arctan(desx/desy)
@@ -1083,8 +1080,6 @@ if __name__ == '__main__':
 
     print "Starting initial Mapping!"
 
-    driveStraight(.05,.1)
-
     while (1 and not rospy.is_shutdown()):
 
         publishCells(mapData) #publishing map data every 2 seconds
@@ -1097,6 +1092,8 @@ if __name__ == '__main__':
             print "Publishing waypoints"
 
             waypoints = getDouglasWaypoints(path)
+            waypoints.pop()
+            waypoints.pop()
             waypoints.reverse()
             publishWaypoints(getDouglasWaypoints(path))#publish waypoints
             
