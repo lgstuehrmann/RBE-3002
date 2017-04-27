@@ -447,10 +447,13 @@ def aStar():
                 for node in adjCellList:
                     if node not in closedSet:
                         frontier.append(node)
-                        publishFrontier(frontier)
         except KeyboardInterrupt: 
             break
         publishFrontier(frontier)
+<<<<<<< HEAD
+=======
+
+>>>>>>> 002332cf8bc1603e7cf38663e807c722bddf05fb
     
     print "No route to goal"
 
@@ -487,7 +490,49 @@ def getWaypoints(path): #calculate waypoints from optimal path
 
     return returnPath
 
+def getFrontier(G):
+    global listEdge
+    global frontier
 
+    frontier = list()
+    openCells = list()
+    obstacles = list()
+    frontiernodes = list()
+    for cell in G:
+        if cell.weight <= 80 and cell.weight >=0:
+            openCells.append(cell)
+        else:
+            if cell.weight > 80:
+                obstacles.append(cell)
+
+    print "looking for frontier"
+    for cell in openCells:
+        for neighborindex in connectNeighbors(cell.index, True):
+            if G[neighborindex].weight == -1 and G[neighborindex] not in frontier:
+                frontier.append(cell)
+    print "searching for edges"
+    for cell in frontier:
+        if not listCheck2D(cell, edgelist):
+            edge = findedge(cell,list(),G)
+            publishFrontier(edge)
+            edgelist.append(edge)
+
+
+def listCheck2D(cell, llist):
+    for list in llist:
+        if cell in list:
+            return True
+    else:
+        return False
+
+def findedge(cell, edge, G):
+    if cell not in edge:
+        edge.append(cell)
+    for neighborindex in connectNeighbors(cell.index, True):
+        if G[neighborindex] in frontier and G[neighborindex] not in edge:
+            edge.append(G[neighborindex])
+            findedge(G[neigborindex], edge, G)
+    return edge
 """
 rdp
 ~~~ 
@@ -1002,7 +1047,7 @@ if __name__ == '__main__':
     sub = rospy.Subscriber('/map', OccupancyGrid, mapCallBack)
     #odomSub = rospy.Subscriber('odom', Odometry, readOdom, queue_size = 5)
     goal_sub = rospy.Subscriber('/goalpose', PoseStamped, readGoal)
-    start_sub = rospy.Subscriber("/startpose", PoseWithCovarianceStamped, getStart, queue_size=1) #change topic for best results
+    start_sub = rospy.Subscriber("/odom", PoseWithCovarianceStamped, getStart, queue_size=1) #change topic for best results
     
     goal_pub = rospy.Publisher("/goalpose", PoseStamped, queue_size=1)
     pub_obs = rospy.Publisher("/obstacles", GridCells, queue_size = 10)
@@ -1032,7 +1077,8 @@ if __name__ == '__main__':
         scanEnviron()
         publishCells(mapData) #publishing map data every 2 seconds
         if startRead and goalRead:
-            #newMap = initMap(mapgrid)
+            thingforFront = initMap(mapgrid)
+            getFrontier(thingforFront)
             path = aStar()
             #expandedPath = expandPath(path)
             print "Going to publish path"
