@@ -996,9 +996,9 @@ def navWithAStar(path):
         deltay = 0.1 * (desy-thisy)
         distancetoTraverse=pow((pow(deltax,2)+pow(deltay,2)),.5)
         #for angle to rotate
-        phi=numpy.arctan(desy/desx)
-        thisphi = numpy.arctan(thisy/thisx)
-        angletoRotate = ((math.pi)-phi)-thisphi
+        phi=numpy.arctan(desx/desy)
+        thisphi = numpy.arctan(thisx/thisy)
+        angletoRotate = phi-thisphi
         rotateDeg(numpy.degrees(angletoRotate))
         print "Done Rotate"
         rospy.sleep(2)
@@ -1072,6 +1072,8 @@ if __name__ == '__main__':
     rospy.sleep(2)
 
     print "Starting initial Mapping!"
+
+    driveStraight(.05,.1)
 
     while (1 and not rospy.is_shutdown()):
 
