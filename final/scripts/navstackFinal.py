@@ -400,7 +400,6 @@ def reconPath(current, start):
              
     return total_path
 
-
 def aStar():
     
     global G
@@ -451,6 +450,7 @@ def aStar():
                         publishFrontier(frontier)
         except KeyboardInterrupt: 
             break
+        publishFrontier(frontier)
     
     print "No route to goal"
 
@@ -904,8 +904,47 @@ def readMap(msg):
         else:
             ObservedMap.data[each] = msg.data[each]
 
+def rotateDeg(angle):
+    """rotate relative to robot's current position"""
+    global odom_list
+    global pose
+    global theta
+    error = angle-math.degrees(pose.orientation.z)
+    #angvel = .4
+    if(angle>=0):
+       angvel = .5
+    elif angle<0: 
+       angvel = -.5
+
+    angle= angle + math.degrees(pose.orientation.z)
+####mod it by 360 so it never overturns
+    if (angle > 180):
+       angle = angle-360
+    elif (angle < -180):
+       angle = angle+360
+    vel = Twist();   
+    done = True
+
+    # set rotation direction
+    
+#####################
+    #determine which way to turn based on the angle
+#######################
+
+    while ((abs(error) >= 2) and not rospy.is_shutdown()):
+            #Use this while loop to start the robots motion and determine if you are at the right angle.    
+        print angvel
+        print angle
+
+        publishTwist(0,angvel)
+        error = angle-math.degrees(pose.orientation.z)
+        print error
+        rospy.sleep(0.15)
+        
+    publishTwist(0,0)
+
 def scanEnviron():
-    rotateDeg(360)
+    rotateDeg(180)
 
 def readOdom(event):
     global pose
@@ -961,7 +1000,7 @@ if __name__ == '__main__':
     ########################SUBS AND PUBS####################################################
     bumper_sub = rospy.Subscriber('mobile_base/events/bumper', BumperEvent, readBumper, queue_size=1) # Callback function to handle bumper events
     sub = rospy.Subscriber('/map', OccupancyGrid, mapCallBack)
-    odomSub = rospy.Subscriber('odom', Odometry, readOdom, queue_size = 5)
+    #odomSub = rospy.Subscriber('odom', Odometry, readOdom, queue_size = 5)
     goal_sub = rospy.Subscriber('/goalpose', PoseStamped, readGoal)
     start_sub = rospy.Subscriber("/startpose", PoseWithCovarianceStamped, getStart, queue_size=1) #change topic for best results
     
@@ -990,6 +1029,7 @@ if __name__ == '__main__':
 
     while (1 and not rospy.is_shutdown()):
 
+        scanEnviron()
         publishCells(mapData) #publishing map data every 2 seconds
         if startRead and goalRead:
             #newMap = initMap(mapgrid)
