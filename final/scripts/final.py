@@ -603,7 +603,7 @@ def publishWaypoints(grid):
         point=Point()
         point = node
         cells.cells.append(point)
-    print "Point in Waypoint: X: %f Y: %f" % (point.x, point.y)
+    #print "Point in Waypoint: X: %f Y: %f" % (point.x, point.y)
     pubway.publish(cells) 
 
 
@@ -990,8 +990,8 @@ def navWithAStar(path):
         #for distance
         desx = nextpose.position.x
         desy = nextpose.position.y
-        thisx = startPosX # startPos.pose.pose.position.x
-        thisy = startPosY # startPos.pose.pose.position.y
+        thisx = pose.position.x # startPos.pose.pose.position.x
+        thisy = pose.position.y # startPos.pose.pose.position.y
         deltax = 0.1 * (desx-thisx)
         deltay = 0.1 * (desy-thisy)
         distancetoTraverse=pow((pow(deltax,2)+pow(deltay,2)),.5)
@@ -1073,8 +1073,6 @@ if __name__ == '__main__':
 
     print "Starting initial Mapping!"
 
-    driveStraight(.05,.1)
-
     while (1 and not rospy.is_shutdown()):
 
         publishCells(mapData) #publishing map data every 2 seconds
@@ -1087,9 +1085,10 @@ if __name__ == '__main__':
             print "Publishing waypoints"
 
             waypoints = getDouglasWaypoints(path)
+            waypoints.pop()
             waypoints.reverse()
             publishWaypoints(getDouglasWaypoints(path))#publish waypoints
-            
+            print "List of Waypoints:"
             navWithAStar(path)
             
             print "I should not be moving anymore"    
