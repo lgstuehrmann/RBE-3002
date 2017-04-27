@@ -966,6 +966,7 @@ def navWithAStar(path):
     newpathPoints = getDouglasWaypoints(path)
 
     posePath = list()
+<<<<<<< HEAD
     initPose = Pose()
     initPose.position.x = pose.position.x #startPos.pose.pose.position.x
     initPose.position.y = pose.position.y #startPos.pose.pose.position.y
@@ -976,6 +977,8 @@ def navWithAStar(path):
     initPose.orientation.z = pose.orientation.z
     initPose.orientation.w = 0
     posePath.append(initPose)
+=======
+>>>>>>> b96061b31a33e61fdeeb0156c59f863411fdc23e
 
     for point in newpathPoints:
         newPose = Pose()
@@ -987,9 +990,12 @@ def navWithAStar(path):
         newPose.orientation.z = 0
         newPose.orientation.w = 0
         posePath.append(newPose)
-    
-    print posePath
-    rospy.sleep(2)
+    posePath.pop()
+    posePath.reverse() 
+    print "posePath:"
+    for each in posePath:
+        print each
+    rospy.sleep(60)
     donePoses = list()
 
     for nextpose in posePath:
@@ -1002,14 +1008,17 @@ def navWithAStar(path):
         deltay = (desy-thisy)
         thisx = pose.position.x # startPos.pose.pose.position.x
         thisy = pose.position.y # startPos.pose.pose.position.y
+<<<<<<< HEAD
         deltax = (desx-thisx)
         deltay = (desy-thisy)
+=======
+        deltax =(desx-thisx)
+        deltay =(desy-thisy)
+>>>>>>> b96061b31a33e61fdeeb0156c59f863411fdc23e
         distancetoTraverse=pow((pow(deltax,2)+pow(deltay,2)),.5)
-        #for angle to rotate
-        phi=numpy.arctan(desx/desy)
-        thisphi = numpy.arctan(thisx/thisy)
-        angletoRotate = phi-thisphi
-        rotateDeg(numpy.degrees(angletoRotate))
+        phi = numpy.arctan(deltay/deltax)
+        print phi
+        rotateDeg(numpy.degrees(phi))
         print "Done Rotate"
         rospy.sleep(2)
         driveStraight(0.25, distancetoTraverse)
@@ -1102,6 +1111,8 @@ if __name__ == '__main__':
             
             publishWaypoints(getDouglasWaypoints(path))#publish waypoints
             print "List of Waypoints:"
+            print waypoints
+            rospy.sleep(20)
             navWithAStar(path)
             
             print "I should not be moving anymore"    
