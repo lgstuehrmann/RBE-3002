@@ -73,6 +73,7 @@ def mapCallBack(data):
     global resolution
     global offsetX
     global offsetY
+    global nodeList
 
     mapgrid = data
     resolution =data.info.resolution
@@ -81,6 +82,7 @@ def mapCallBack(data):
     height = data.info.height
     offsetX = data.info.origin.position.x
     offsetY = data.info.origin.position.y
+    nodeList = initMap(data)
 
     print data.info
 
@@ -115,12 +117,13 @@ def readGoal(goal):
     global goalX
     global goalY
     global goalIndex
-    goalX= goal.pose.position.x
-    goalY= goal.pose.position.y
+    goalX= goal.position.x
+    goalY= goal.position.y
     
     goalIndex = getIndexFromWorldPoint(goalX,goalY)
     print "Printing goal pose"
-    print goal.pose
+    print goal
+
 
 # returns the index number given a point in the world
 def getIndexFromPoint(x,y):
@@ -128,7 +131,7 @@ def getIndexFromPoint(x,y):
 
     return int(((y)*width) + x)
 
-#returns in meters the point of the current index
+#returns in meters treadGoahe point of the current index
 def getWorldPointFromIndex(index):
     
     global Point
@@ -333,6 +336,8 @@ def initMap(_mapGrid):
     print "creating map"
     global frontier
 
+    frontier = list()
+
     for i in range(0, width*height):
         node = aNode(i,mapData[i],heuristic(i),0,0.0)
         G.append(node) 
@@ -403,6 +408,7 @@ def aStar():
     
     global G
     G = list()
+    rospy.sleep(1)
     initMap(mapgrid)  # add all nodes to grah, link all nodes
 
     global path 
@@ -487,6 +493,7 @@ def getWaypoints(path): #calculate waypoints from optimal path
 def getFrontier(G):
     global listEdge
     global frontier
+    global pose
 
     frontier = list()
     openCells = list()
@@ -511,6 +518,14 @@ def getFrontier(G):
             publishFrontier(edge)
             edgelist.append(edge)
 
+    for each in frontier:
+        thisx = pose.pose.position.x
+        thisy = pose.pose.position.y
+        eachx = each.x
+        eachy = each.y
+        dist = pow(pow(thisx-eachx, 2)+pow(thisy-eachy, 2), .5)
+        if(dist>=.5):
+            return each
 
 def listCheck2D(cell, llist):
     for list in llist:
@@ -889,7 +904,7 @@ def readBumper(msg):
 
 def navWithAStar(path):
     global pose 
-    global startPos
+    global startPosgetFro
     global newPose
     global goalPub
 
@@ -1005,6 +1020,7 @@ def readOdom(event):
 
 
 if __name__ == '__main__':
+    global nodeList
     global pub
     global pose
     pose = Pose()
@@ -1017,13 +1033,15 @@ if __name__ == '__main__':
     startRead = False
     goalRead = False
     global pub_frontier
-    global pub_traverse
+    global pub_traversereadGoal
     global pub_path
     global pubway
     global frontier
     #frontier = list()
     global goal_pub
     global expandedPath
+    global mapData
+
     expandedPath = list()
     bumper = 0
 
@@ -1032,8 +1050,11 @@ if __name__ == '__main__':
 
     rospy.init_node('final')
     ########################SUBS AND PUBS####################################################
-    bumper_sub = rospy.Subscriber('mobile_base/events/bumper', BumperEvent, readBumper, queue_size=1) # Callback function to handle bumper events
     sub = rospy.Subscriber('/map', OccupancyGrid, mapCallBack)
+
+    global pub_obs
+
+    rospy.sleep(2)
     #odomSub = rospy.Subscriber('odom', Odometry, readOdom, queue_size = 5)
     goal_sub = rospy.Subscriber('/goalpose', PoseStamped, readGoal)
     start_sub = rospy.Subscriber("/odom", PoseStamped, getStart, queue_size=1) #change topic for best results
@@ -1057,17 +1078,30 @@ if __name__ == '__main__':
     odom_list = tf.TransformListener()
     odom_tf = tf.TransformBroadcaster()
     odom_tf.sendTransform((0, 0, 0),(0, 0, 0, 1), rospy.Time.now(),"base_footprint","odom")
-    rospy.sleep(2)
+    rospy.sleep(1)
 
     print "Starting initial Mapping!"
 
     while (1 and not rospy.is_shutdown()):
-
-        #scanEnviron()
+        
         publishCells(mapData) #publishing map data every 2 seconds
-        if startRead and goalRead:
-            thingforFront = initMap(mapgrid)
-            getFrontier(thingforFront)
+
+        readGoal(startPos)
+        thingforFront = initMap(mapgrid)
+        celltogo = getFrontier(nodeList)
+        transformedCell = PoseStamped()
+        transformedCell.position.x = celltogo.position.x
+        transformedCell.position.y = celltogo.position.y
+        transformedCell.orientation.w = 1
+        transformedCell.header.seq = 1
+        transformedCell.header.stamp.secs = 1
+        transformedCell.header.stamp.nsecs = 1
+        transformedCell.header.frame_id = 'map'
+        readGoal(transformedCell)
+
+        if (startRead and goalRead):
+            scanEnviron()
+
             path = aStar()
             #expandedPath = expandPath(path)
             print "Going to publish path"
@@ -1089,16 +1123,4 @@ if __name__ == '__main__':
 
         rospy.sleep(2)
 
-    ''' Final Main - In Progress
-    enclosed = false
-    while not enclosed:
-        scanEnviron()
-        getFarthestFrontier()
-        path = AstarToFrontier()
-        navWithAStar(path)
-        if(finalFrontier()):
-            enclosed = True
-            print "finished scanning"
-
-    '''
         
