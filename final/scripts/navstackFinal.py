@@ -511,12 +511,7 @@ def getFrontier(G):
         for neighborindex in connectNeighbors(cell.index, True):
             if G[neighborindex].weight == -1 and G[neighborindex] not in frontier:
                 frontier.append(cell)
-    print "searching for edges"
-    for cell in frontier:
-        if not listCheck2D(cell, edgelist):
-            edge = findedge(cell,list(),G)
-            publishFrontier(edge)
-            edgelist.append(edge)
+                return cell
 
     for each in frontier:
         thisx = pose.pose.position.x
@@ -1085,6 +1080,7 @@ if __name__ == '__main__':
     while (1 and not rospy.is_shutdown()):
         
         publishCells(mapData) #publishing map data every 2 seconds
+<<<<<<< HEAD
 
         readGoal(startPos)
         thingforFront = initMap(mapgrid)
@@ -1102,6 +1098,13 @@ if __name__ == '__main__':
         if (startRead and goalRead):
             scanEnviron()
 
+=======
+        thingforFront = initMap(mapgrid)
+        goalCell = getFrontier(thingforFront)
+        goal_pub.publish(goalCell)#TODO: turn goalCell into something goal_pub can do shit with
+        rospy.sleep(.5)
+        if startRead and goalRead:
+>>>>>>> f1f1f03d27778eebcd9b9de9ee01bf1ce5d09c94
             path = aStar()
             #expandedPath = expandPath(path)
             print "Going to publish path"
