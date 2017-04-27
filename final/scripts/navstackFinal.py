@@ -489,26 +489,50 @@ def getWaypoints(path): #calculate waypoints from optimal path
     return returnPath
 
 def getFrontier(G):
-    global listEdge
     global frontier
-
+    global edgelist
     frontier = list()
+
     openCells = list()
     obstacles = list()
     frontiernodes = list()
-    for cell in G:
-        if cell.weight <= 80 and cell.weight >=0:
-            openCells.append(cell)
-        else:
-            if cell.weight > 80:
-                obstacles.append(cell)
 
-    print "looking for frontier"
+    for cell in G:
+        if cell.weight <=80 and cell.weight>=0:
+            openCells.append(cell)
+
+    for cell in G:
+        if cell.weight > 80:
+            obstacles.append(cell)
+
+    print "getting frontier"
+
     for cell in openCells:
-        for neighborindex in connectNeighbors(cell.index, True):
-            if G[neighborindex].weight == -1 and G[neighborindex] not in frontier:
+        for index in connectNeighbors(cell.index, True):
+            if G[index].weight == -1 and G[index] not in frontier:
                 frontier.append(cell)
+
+    for cell in frontier:
+        if not listCheck2D(cell, edgelist):
+            edge = findedge(cell, list(), G)
+            publishFrontier(edge)
+            edgelist.append(edge)
+
+    for edge in edgelist:
+        for node in edge:
+            frontiernodes.append(node)
+
+    publishFrontier(frontiernodes)
+    try:
+        for cell in frontier:
+            if cell.x>0:
+                print cell
+                rospy.sleep(12)
                 return cell
+    except AttributeError:
+        pass
+
+
 
 
 def listCheck2D(cell, llist):
@@ -986,7 +1010,8 @@ if __name__ == '__main__':
     global expandedPath
     expandedPath = list()
     bumper = 0
-
+    global edgelist
+    edgelist = list()
     global ObservedMap
     ObservedMap = OccupancyGrid()
 
@@ -1020,14 +1045,15 @@ if __name__ == '__main__':
     rospy.sleep(2)
 
     print "Starting initial Mapping!"
-
+    goal = PoseStamped()
+    goal.pose.position.x = 2.5
+    goal.pose.position.y = 2.5
+    goal.pose.orientation.w = 1
+    goal_pub.publish(goal)
     while (1 and not rospy.is_shutdown()):
 
         publishCells(mapData) #publishing map data every 2 seconds
-        thingforFront = initMap(mapgrid)
-        goalCell = getFrontier(thingforFront)
-        goal_pub.publish(goalCell)#TODO: turn goalCell into something goal_pub can do shit with
-        rospy.sleep(.5)
+
         if startRead and goalRead:
             path = aStar()
             #expandedPath = expandPath(path)
@@ -1049,17 +1075,3 @@ if __name__ == '__main__':
             goalRead = False
 
         rospy.sleep(2)
-
-    ''' Final Main - In Progress
-    enclosed = false
-    while not enclosed:
-        scanEnviron()
-        getFarthestFrontier()
-        path = AstarToFrontier()
-        navWithAStar(path)
-        if(finalFrontier()):
-            enclosed = True
-            print "finished scanning"
-
-    '''
-        
