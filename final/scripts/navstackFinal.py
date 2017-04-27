@@ -100,10 +100,13 @@ def getStart(_startPos):
     startIndex = getIndexFromWorldPoint(startPosX, startPosY)
 
     point = getWorldPointFromIndex(startIndex)
+
+    startIndex = getIndexFromWorldPoint(startPosX, startPosY)
     
     
     print "Printing start pose"
     print startPos.pose.pose
+    point = getWorldPointFromIndex(startIndex)
     print "Calculated world position: %f, %f Index: %i" % (point.x, point.y, startIndex)
 
 def readGoal(goal):
@@ -112,9 +115,6 @@ def readGoal(goal):
     global goalX
     global goalY
     global goalIndex
-    global goalPhi
-    global goalOrientation
-
     goalX= goal.pose.position.x
     goalY= goal.pose.position.y
     
@@ -122,12 +122,6 @@ def readGoal(goal):
     print "Printing goal pose"
     print goal.pose
 
-    goalOrientation = goal.pose.orientation
-    quaternion = (pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w)
-    roll, pitch, yaw = euler_from_quaternion(quaternion)
-
-    pose.orientation.z = yaw
-    goalPhi = math.degrees(yaw)
 # returns the index number given a point in the world
 def getIndexFromPoint(x,y):
     global Point
@@ -844,7 +838,75 @@ def expandPath(path):
                 pass
     return obstacles
 
-#Odom "Callback" function.
+#This function takes angular and linear speeds and publishes them to a twist-type message
+def publishTwist(linearvalue, angularvalue):
+    global pubtwist
+    twist = Twist()
+    twist.linear.x = linearvalue
+    twist.angular.z = angularvalue
+    pubtwist.publish(twist)
+
+#Bumper Event Callback function
+def readBumper(msg):
+    global bumper
+    if (msg.state == 1):
+        print "boop"
+        bumper = 1
+
+def navWithAStar(path):
+    global pose 
+    global startPos
+    global newPose
+    global goalPub
+
+    publishWaypoints(getDouglasWaypoints(path))
+    newpathPoints = getDouglasWaypoints(path)
+
+    posePath = list()
+
+    for point in newpathPoints:
+        newPose = Pose()
+        newPose.position.x = point.x
+        newPose.position.y = point.y
+        newPose.position.z = 0
+        newPose.orientation.x = 0
+        newPose.orientation.y = 0
+        newPose.orientation.z = 0
+        newPose.orientation.w = 1
+        posePath.append(newPose)
+    posePath.pop()
+    posePath.reverse() 
+    print "posePath:"
+    for each in posePath:
+        print each
+    donePoses = list()
+
+    for nextpose in posePath:
+        poseStampedtoSend = PoseStamped()
+        poseStampedtoSend.pose = nextpose
+        poseStampedtoSend.header.seq = 1
+        poseStampedtoSend.header.stamp.secs = 1
+        poseStampedtoSend.header.stamp.nsecs = 1
+        poseStampedtoSend.header.frame_id = 'map'
+        goalPub.publish(poseStampedtoSend)
+        donePoses.append(newPose)
+        try:
+            posePath.remove(newPose)
+        except ValueError:
+            pass
+
+
+def readMap(msg):
+    global ObservedMap#map to add cells to
+    for each in msg.data:
+        if ObservedMap.data[each] != null:
+            pass
+        else:
+            ObservedMap.data[each] = msg.data[each]
+
+def scanEnviron():
+    rotateDeg(360)
+
 def readOdom(event):
     global pose
     global xPosition
@@ -868,291 +930,6 @@ def readOdom(event):
     pose.orientation.z = yaw
     theta = math.degrees(yaw)
 
-    #pose = msg.pose
-
-#This function accepts two wheel velocities(linear in in/s) and a time interval(s).
-def spinWheels(u1, u2, time):
-    global pub
-
-    beginning_time = rospy.Time().now().secs
-
-    omega = (u2-u1)/.229
-    linear = (.229/2)*(u1-u2)
-
-    rob_pos = Twist()
-    rob_pos.angular.z = omega
-    rob_pos.linear.x = linear
-
-    while(rospy.Time().now().secs - beginning_time < time):
-        pub.publish(rob_pos)
-
-    print "spin complete"
-
-#This function accepts a speed and a distance for the robot to move in a straight line
-def driveStraight(speed, distance):
-    global pose
-
-    px = pose.position.x
-    desx = px+distance
-    rob_pos = Twist()
-    there = False
-    while(not there):
-        nowx = pose.position.x
-        newdist = abs(nowx - px)
-        print str(newdist)+','+str(distance)
-        if(newdist >= distance):
-            there = True
-            rob_pos.linear.x = 0
-            pubtwist.publish(rob_pos)
-        else:
-            rob_pos.linear.x = speed
-            pubtwist.publish(rob_pos)
-    
-    print "done straight"
-
-"""
-def rotateDeg(angle):
-    global odom_list
-    global pose
-    global theta
-    
-    angle = angle + math.degrees(pose.orientation.z)
-
-####mod it by 360 so it never overturns
-    if (angle > 180):
-       angle = angle-360
-    elif (angle < -180):
-       angle = angle+360
-
-    error = angle-math.degrees(pose.orientation.z)
-    angvel = .5
-    if(error>=0):
-       angvel = .5
-    elif angle<0:
-       angvel = -.5
-
-    vel = Twist();   
-    done = True
-
-    while ((abs(error) >= 2) and not rospy.is_shutdown()):
-            #Use this while loop to start the robots motion and determine if you are at the right angle.    
-        publishTwist(0,angvel)
-        error = angle-math.degrees(pose.orientation.z)
-        rospy.sleep(0.15)
-
-        print str(error)
-        
-    publishTwist(0,0)
-    """
-
-def rotateDegrees(angle):
-    global odom_list
-    global pose
-    global theta
-    tolerance = 2
-
-    phi = math.degrees(pose.orientation.z)
-    error = angle - phi
-    print error
-
-    if (angle < 0 and phi < 0):
-        if (error < 0):
-            omega = 0.5
-        else:
-            omega = -0.5
-    elif (angle < 0 and phi > 0):
-        if (error < 180):
-            omega = 0.5
-        else:
-            omega = -0.5
-    elif (angle > 0 and phi < 0):
-        if (error < 180):
-            omega = -0.5
-        else:
-            omega = 0.5
-    elif (angle > 0 and phi > 0):
-        if (error < 0):
-            omega = -0.5
-        else:
-            omega = 0.5
-
-    #angle = angle + phi
-
-    while((abs(error) >= tolerance) and not rospy.is_shutdown()):
-        publishTwist(0, omega)
-        phi = math.degrees(pose.orientation.z)
-        error = angle - phi
-        print error
-        rospy.sleep(0.15)
-
-    publishTwist(0, 0)
-    phi = 0
-
-
-
-def rotateDeg(angle):
-    """rotate relative to robot's current position"""
-    global odom_list
-    global pose
-    global theta
-    error = angle-math.degrees(pose.orientation.z)
-    #angvel = .4
-    if(angle>=0):
-       angvel = .4
-    elif angle<0: 
-       angvel = -.4
-
-    angle= angle + math.degrees(pose.orientation.z)
-####mod it by 360 so it never overturns
-    if (angle > 180):
-       angle = angle-360
-    elif (angle < -180):
-       angle = angle+360
-    vel = Twist();   
-    done = True
-
-    # set rotation direction
-    
-#####################
-    #determine which way to turn based on the angle
-#######################
-    while ((abs(error) >= 2) and not rospy.is_shutdown()):
-            #Use this while loop to start the robots motion and determine if you are at the right angle.    
-        publishTwist(0,angvel)
-        error = angle-math.degrees(pose.orientation.z)
-        print error
-        rospy.sleep(0.15)
-        
-    publishTwist(0,0)
-"""
-def rotate(angle):
-    global odom_list
-    global pose
-    global theta
-    
-    phi = pose.orientation.z
-
-
-    if (angle < 0):
-        omega = -0.5
-    else:
-        omega = 0.5
-
-####mod it by 360 so it never overturns
-    if (angle > 180):
-       angle = angle-360
-    elif (angle < -180):
-       angle = angle+360
-
-    error = angle-math.degrees(pose.orientation.z)
-    angvel = .5
-    if(error>=0):
-       angvel = .5
-    elif angle<0:
-       angvel = -.5
-
-    vel = Twist();   
-    done = True
-
-    while ((abs(error) >= 2) and not rospy.is_shutdown()):
-            #Use this while loop to start the robots motion and determine if you are at the right angle.    
-        publishTwist(0,angvel)
-        error = angle-math.degrees(pose.orientation.z)
-        rospy.sleep(0.15)
-
-        print str(error)
-        
-    publishTwist(0,0)
-"""
-#This function takes angular and linear speeds and publishes them to a twist-type message
-def publishTwist(linearvalue, angularvalue):
-    global pubtwist
-    twist = Twist()
-    twist.linear.x = linearvalue
-    twist.angular.z = angularvalue
-    pubtwist.publish(twist)
-
-#Bumper Event Callback function
-def readBumper(msg):
-    global bumper
-    if (msg.state == 1):
-        print "boop"
-        bumper = 1
-
-def navWithAStar(path):
-    global pose 
-    global startPos
-    global newPose
-
-    publishWaypoints(getDouglasWaypoints(path))
-    newpathPoints = getDouglasWaypoints(path)
-
-    posePath = list()
-
-    for point in newpathPoints:
-        newPose = Pose()
-        newPose.position.x = point.x
-        newPose.position.y = point.y
-        newPose.position.z = 0
-        newPose.orientation.x = 0
-        newPose.orientation.y = 0
-        newPose.orientation.z = 0
-        newPose.orientation.w = 0
-        posePath.append(newPose)
-    posePath.pop()
-    posePath.reverse() 
-    print "posePath:"
-    for each in posePath:
-        print each
-    rospy.sleep(1)
-    donePoses = list()
-
-    for nextpose in posePath:
-        #for distance
-        desx = nextpose.position.x
-        desy = nextpose.position.y
-
-        thisx = pose.position.x # startPos.pose.pose.position.x
-        thisy = pose.position.y # startPos.pose.pose.position.y
-        print thisx
-        print thisy
-        print desx
-        print desy
-        rospy.sleep(1)
-
-        deltax =(desx-thisx)
-        deltay =(desy-thisy)
-
-
-        distancetoTraverse=pow((pow(deltax,2)+pow(deltay,2)),.5)
-        alpha = (math.atan2(deltax, deltay) * (180 / math.pi)) - theta #numpy.arctan(deltay/deltax) 
-
-        print alpha
-        print numpy.degrees(alpha)
-        rospy.sleep(1)
-        phi = pose.orientation.z
-        rotateDeg(alpha)
-        print "Done Rotate"
-        rospy.sleep(2)
-        driveStraight(0.25, distancetoTraverse)
-        donePoses.append(newPose)
-        try:
-            posePath.remove(newPose)
-        except ValueError:
-            pass
-
-
-
-def readMap(msg):
-    global ObservedMap#map to add cells to
-    for each in msg.data:
-        if ObservedMap.data[each] != null:
-            pass
-        else:
-            ObservedMap.data[each] = msg.data[each]
-
-def scanEnviron():
-    rotateDeg(360)
 
 if __name__ == '__main__':
     global pub
@@ -1197,28 +974,21 @@ if __name__ == '__main__':
     pubtwist = rospy.Publisher('cmd_vel_mux/input/teleop', Twist, None, queue_size = 10)
     pub_traverse = rospy.Publisher('/traversal', GridCells, queue_size=1)
 
+    goalPub = rospy.Publisher('move_base_simple/goal', PoseStamped, queue_size = 10)
+
     #########################MAPPING WITH LASERSCANS##########################################
     laser_sub = rospy.Subscriber('base_scan', OccupancyGrid, readMap)
     
     ##########################ODOM###########################################################
-
+    rospy.Timer(rospy.Duration(.01), readOdom)
     odom_list = tf.TransformListener()
-
-    rospy.sleep(2)
-    rospy.Timer(rospy.Duration(.1), readOdom)
-    
     odom_tf = tf.TransformBroadcaster()
     odom_tf.sendTransform((0, 0, 0),(0, 0, 0, 1), rospy.Time.now(),"base_footprint","odom")
-
-    rotateDegrees(45)
-    print "did i do it?"
-    while(1 and not rospy.is_shutdown()):
-        rospy.sleep(0.1)
+    rospy.sleep(2)
 
     print "Starting initial Mapping!"
 
     while (1 and not rospy.is_shutdown()):
-
 
         publishCells(mapData) #publishing map data every 2 seconds
         if startRead and goalRead:
@@ -1231,14 +1001,10 @@ if __name__ == '__main__':
 
             waypoints = getDouglasWaypoints(path)
             waypoints.pop()
-            waypoints.pop()
-            waypoints.pop()
             waypoints.reverse()
-            
             publishWaypoints(getDouglasWaypoints(path))#publish waypoints
             print "List of Waypoints:"
             print waypoints
-            rospy.sleep(2)
             navWithAStar(path)
             
             print "I should not be moving anymore"    
@@ -1247,8 +1013,8 @@ if __name__ == '__main__':
             goalRead = False
 
         rospy.sleep(2)
-"""
-     Final Main - In Progress
+
+    ''' Final Main - In Progress
     enclosed = false
     while not enclosed:
         scanEnviron()
@@ -1258,4 +1024,6 @@ if __name__ == '__main__':
         if(finalFrontier()):
             enclosed = True
             print "finished scanning"
-            """
+
+    '''
+        
