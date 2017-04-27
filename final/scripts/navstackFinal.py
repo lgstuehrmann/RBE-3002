@@ -332,7 +332,6 @@ def initMap(_mapGrid):
 
     print "creating map"
     global frontier
-    frontier = list()
 
     for i in range(0, width*height):
         node = aNode(i,mapData[i],heuristic(i),0,0.0)
@@ -415,7 +414,6 @@ def aStar():
     global traversal
     traversal = list()
     global frontier
-    frontier = list()
 
     openSet = list()
     openSet.append(G[startIndex])        #Add first node to openSet # set priority to distance
@@ -450,10 +448,6 @@ def aStar():
         except KeyboardInterrupt: 
             break
         publishFrontier(frontier)
-<<<<<<< HEAD
-=======
-
->>>>>>> 002332cf8bc1603e7cf38663e807c722bddf05fb
     
     print "No route to goal"
 
@@ -1032,7 +1026,7 @@ if __name__ == '__main__':
     global pub_path
     global pubway
     global frontier
-    frontier = list()
+    #frontier = list()
     global goal_pub
     global expandedPath
     expandedPath = list()
@@ -1074,7 +1068,7 @@ if __name__ == '__main__':
 
     while (1 and not rospy.is_shutdown()):
 
-        scanEnviron()
+        #scanEnviron()
         publishCells(mapData) #publishing map data every 2 seconds
         if startRead and goalRead:
             thingforFront = initMap(mapgrid)
