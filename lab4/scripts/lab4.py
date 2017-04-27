@@ -1013,6 +1013,8 @@ def navWithAStar(path):
 
 
 
+
+
 # This is the program's main function
 if __name__ == '__main__':
 

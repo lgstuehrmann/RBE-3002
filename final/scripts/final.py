@@ -909,13 +909,15 @@ def driveStraight(speed, distance):
             pubtwist.publish(rob_pos)
     
     print "done straight"
-   
+
+"""
 def rotateDeg(angle):
     global odom_list
     global pose
     global theta
     
-    angle= angle + math.degrees(pose.orientation.z)
+    angle = angle + math.degrees(pose.orientation.z)
+
 ####mod it by 360 so it never overturns
     if (angle > 180):
        angle = angle-360
@@ -941,7 +943,127 @@ def rotateDeg(angle):
         print str(error)
         
     publishTwist(0,0)
+    """
 
+def rotateDegrees(angle):
+    global odom_list
+    global pose
+    global theta
+    tolerance = 2
+
+    phi = math.degrees(pose.orientation.z)
+    error = angle - phi
+    print error
+
+    if (angle < 0 and phi < 0):
+        if (error < 0):
+            omega = 0.5
+        else:
+            omega = -0.5
+    elif (angle < 0 and phi > 0):
+        if (error < 180):
+            omega = 0.5
+        else:
+            omega = -0.5
+    elif (angle > 0 and phi < 0):
+        if (error < 180):
+            omega = -0.5
+        else:
+            omega = 0.5
+    elif (angle > 0 and phi > 0):
+        if (error < 0):
+            omega = -0.5
+        else:
+            omega = 0.5
+
+    #angle = angle + phi
+
+    while((abs(error) >= tolerance) and not rospy.is_shutdown()):
+        publishTwist(0, omega)
+        phi = math.degrees(pose.orientation.z)
+        error = angle - phi
+        print error
+        rospy.sleep(0.15)
+
+    publishTwist(0, 0)
+    phi = 0
+
+
+
+def rotateDeg(angle):
+    """rotate relative to robot's current position"""
+    global odom_list
+    global pose
+    global theta
+    error = angle-math.degrees(pose.orientation.z)
+    #angvel = .4
+    if(angle>=0):
+       angvel = .4
+    elif angle<0: 
+       angvel = -.4
+
+    angle= angle + math.degrees(pose.orientation.z)
+####mod it by 360 so it never overturns
+    if (angle > 180):
+       angle = angle-360
+    elif (angle < -180):
+       angle = angle+360
+    vel = Twist();   
+    done = True
+
+    # set rotation direction
+    
+#####################
+    #determine which way to turn based on the angle
+#######################
+    while ((abs(error) >= 2) and not rospy.is_shutdown()):
+            #Use this while loop to start the robots motion and determine if you are at the right angle.    
+        publishTwist(0,angvel)
+        error = angle-math.degrees(pose.orientation.z)
+        print error
+        rospy.sleep(0.15)
+        
+    publishTwist(0,0)
+"""
+def rotate(angle):
+    global odom_list
+    global pose
+    global theta
+    
+    phi = pose.orientation.z
+
+
+    if (angle < 0):
+        omega = -0.5
+    else:
+        omega = 0.5
+
+####mod it by 360 so it never overturns
+    if (angle > 180):
+       angle = angle-360
+    elif (angle < -180):
+       angle = angle+360
+
+    error = angle-math.degrees(pose.orientation.z)
+    angvel = .5
+    if(error>=0):
+       angvel = .5
+    elif angle<0:
+       angvel = -.5
+
+    vel = Twist();   
+    done = True
+
+    while ((abs(error) >= 2) and not rospy.is_shutdown()):
+            #Use this while loop to start the robots motion and determine if you are at the right angle.    
+        publishTwist(0,angvel)
+        error = angle-math.degrees(pose.orientation.z)
+        rospy.sleep(0.15)
+
+        print str(error)
+        
+    publishTwist(0,0)
+"""
 #This function takes angular and linear speeds and publishes them to a twist-type message
 def publishTwist(linearvalue, angularvalue):
     global pubtwist
@@ -966,19 +1088,6 @@ def navWithAStar(path):
     newpathPoints = getDouglasWaypoints(path)
 
     posePath = list()
-<<<<<<< HEAD
-    initPose = Pose()
-    initPose.position.x = pose.position.x #startPos.pose.pose.position.x
-    initPose.position.y = pose.position.y #startPos.pose.pose.position.y
-
-    initPose.position.z = 0
-    initPose.orientation.x = 0
-    initPose.orientation.y = 0
-    initPose.orientation.z = pose.orientation.z
-    initPose.orientation.w = 0
-    posePath.append(initPose)
-=======
->>>>>>> b96061b31a33e61fdeeb0156c59f863411fdc23e
 
     for point in newpathPoints:
         newPose = Pose()
@@ -995,30 +1104,34 @@ def navWithAStar(path):
     print "posePath:"
     for each in posePath:
         print each
-    rospy.sleep(60)
+    rospy.sleep(1)
     donePoses = list()
 
     for nextpose in posePath:
         #for distance
         desx = nextpose.position.x
         desy = nextpose.position.y
-        thisx = startPosX # startPos.pose.pose.position.x
-        thisy = startPosY # startPos.pose.pose.position.y
-        deltax = (desx-thisx)
-        deltay = (desy-thisy)
+
         thisx = pose.position.x # startPos.pose.pose.position.x
         thisy = pose.position.y # startPos.pose.pose.position.y
-<<<<<<< HEAD
-        deltax = (desx-thisx)
-        deltay = (desy-thisy)
-=======
+        print thisx
+        print thisy
+        print desx
+        print desy
+        rospy.sleep(1)
+
         deltax =(desx-thisx)
         deltay =(desy-thisy)
->>>>>>> b96061b31a33e61fdeeb0156c59f863411fdc23e
+
+
         distancetoTraverse=pow((pow(deltax,2)+pow(deltay,2)),.5)
-        phi = numpy.arctan(deltay/deltax)
-        print phi
-        rotateDeg(numpy.degrees(phi))
+        alpha = (math.atan2(deltax, deltay) * (180 / math.pi)) - theta #numpy.arctan(deltay/deltax) 
+
+        print alpha
+        print numpy.degrees(alpha)
+        rospy.sleep(1)
+        phi = pose.orientation.z
+        rotateDeg(alpha)
         print "Done Rotate"
         rospy.sleep(2)
         driveStraight(0.25, distancetoTraverse)
@@ -1085,15 +1198,24 @@ if __name__ == '__main__':
     laser_sub = rospy.Subscriber('base_scan', OccupancyGrid, readMap)
     
     ##########################ODOM###########################################################
-    rospy.Timer(rospy.Duration(.01), readOdom)
+
     odom_list = tf.TransformListener()
+
+    rospy.sleep(2)
+    rospy.Timer(rospy.Duration(.1), readOdom)
+    
     odom_tf = tf.TransformBroadcaster()
     odom_tf.sendTransform((0, 0, 0),(0, 0, 0, 1), rospy.Time.now(),"base_footprint","odom")
-    rospy.sleep(2)
+
+    rotateDegrees(45)
+    print "did i do it?"
+    while(1 and not rospy.is_shutdown()):
+        rospy.sleep(0.1)
 
     print "Starting initial Mapping!"
 
     while (1 and not rospy.is_shutdown()):
+
 
         publishCells(mapData) #publishing map data every 2 seconds
         if startRead and goalRead:
@@ -1106,13 +1228,14 @@ if __name__ == '__main__':
 
             waypoints = getDouglasWaypoints(path)
             waypoints.pop()
-            waypoints.reverse()
             waypoints.pop()
+            waypoints.pop()
+            waypoints.reverse()
             
             publishWaypoints(getDouglasWaypoints(path))#publish waypoints
             print "List of Waypoints:"
             print waypoints
-            rospy.sleep(20)
+            rospy.sleep(2)
             navWithAStar(path)
             
             print "I should not be moving anymore"    
@@ -1121,8 +1244,8 @@ if __name__ == '__main__':
             goalRead = False
 
         rospy.sleep(2)
-
-    ''' Final Main - In Progress
+"""
+     Final Main - In Progress
     enclosed = false
     while not enclosed:
         scanEnviron()
@@ -1132,6 +1255,4 @@ if __name__ == '__main__':
         if(finalFrontier()):
             enclosed = True
             print "finished scanning"
-
-    '''
-        
+            """
