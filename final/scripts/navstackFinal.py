@@ -838,104 +838,6 @@ def expandPath(path):
                 pass
     return obstacles
 
-#Odom "Callback" function.
-def readOdom(event):
-    global pose
-    global xPosition
-    global yPosition
-    global theta
-    global startPose
-
-    odom_list.waitForTransform('map', 'base_footprint', rospy.Time(0), rospy.Duration(10))
-    (position, orientation) = odom_list.lookupTransform('map', 'base_footprint', rospy.Time(0))
-    pose.position.x = position[0]
-    pose.position.y = position[1]
-    yPosition = position[1]
-    xPosition = position[0]
-
-    startPose = pose.position
-
-    odomW = orientation
-    q = [odomW[0], odomW[1], odomW[2], odomW[3]]
-    roll, pitch, yaw = euler_from_quaternion(q)
-
-    pose.orientation.z = yaw
-    theta = math.degrees(yaw)
-
-    #pose = msg.pose
-
-#This function accepts two wheel velocities(linear in in/s) and a time interval(s).
-def spinWheels(u1, u2, time):
-    global pub
-
-    beginning_time = rospy.Time().now().secs
-
-    omega = (u2-u1)/.229
-    linear = (.229/2)*(u1-u2)
-
-    rob_pos = Twist()
-    rob_pos.angular.z = omega
-    rob_pos.linear.x = linear
-
-    while(rospy.Time().now().secs - beginning_time < time):
-        pub.publish(rob_pos)
-
-    print "spin complete"
-
-#This function accepts a speed and a distance for the robot to move in a straight line
-def driveStraight(speed, distance):
-    global pose
-
-    px = pose.position.x
-    desx = px+distance
-    rob_pos = Twist()
-    there = False
-    while(not there):
-        nowx = pose.position.x
-        newdist = abs(nowx - px)
-        print str(newdist)+','+str(distance)
-        if(newdist >= distance):
-            there = True
-            rob_pos.linear.x = 0
-            pubtwist.publish(rob_pos)
-        else:
-            rob_pos.linear.x = speed
-            pubtwist.publish(rob_pos)
-    
-    print "done straight"
-   
-def rotateDeg(angle):
-    global odom_list
-    global pose
-    global theta
-    
-    angle= angle + math.degrees(pose.orientation.z)
-####mod it by 360 so it never overturns
-    if (angle > 180):
-       angle = angle-360
-    elif (angle < -180):
-       angle = angle+360
-
-    error = angle-math.degrees(pose.orientation.z)
-    angvel = .5
-    if(error>=0):
-       angvel = .5
-    elif angle<0:
-       angvel = -.5
-
-    vel = Twist();   
-    done = True
-
-    while ((abs(error) >= 2) and not rospy.is_shutdown()):
-            #Use this while loop to start the robots motion and determine if you are at the right angle.    
-        publishTwist(0,angvel)
-        error = angle-math.degrees(pose.orientation.z)
-        rospy.sleep(0.15)
-
-        print str(error)
-        
-    publishTwist(0,0)
-
 #This function takes angular and linear speeds and publishes them to a twist-type message
 def publishTwist(linearvalue, angularvalue):
     global pubtwist
@@ -955,6 +857,7 @@ def navWithAStar(path):
     global pose 
     global startPos
     global newPose
+    global goalPub
 
     publishWaypoints(getDouglasWaypoints(path))
     newpathPoints = getDouglasWaypoints(path)
@@ -980,20 +883,7 @@ def navWithAStar(path):
     donePoses = list()
 
     for nextpose in posePath:
-        #for distance
-        desx = nextpose.position.x
-        desy = nextpose.position.y
-        thisx = pose.position.x # startPos.pose.pose.position.x
-        thisy = pose.position.y # startPos.pose.pose.position.y
-        deltax =(desx-thisx)
-        deltay =(desy-thisy)
-        distancetoTraverse=pow((pow(deltax,2)+pow(deltay,2)),.5)
-        phi = numpy.arctan(deltay/deltax)
-        print phi
-        rotateDeg(numpy.degrees(phi))
-        print "Done Rotate"
-        rospy.sleep(2)
-        driveStraight(0.25, distancetoTraverse)
+        goalPub.publish(nextpose)
         donePoses.append(newPose)
         try:
             posePath.remove(newPose)
@@ -1011,6 +901,30 @@ def readMap(msg):
 
 def scanEnviron():
     rotateDeg(360)
+
+def readOdom(event):
+    global pose
+    global xPosition
+    global yPosition
+    global theta
+    global startPose
+
+    odom_list.waitForTransform('map', 'base_footprint', rospy.Time(0), rospy.Duration(10))
+    (position, orientation) = odom_list.lookupTransform('map', 'base_footprint', rospy.Time(0))
+    pose.position.x = position[0]
+    pose.position.y = position[1]
+    yPosition = position[1]
+    xPosition = position[0]
+
+    startPose = pose.position
+
+    odomW = orientation
+    q = [odomW[0], odomW[1], odomW[2], odomW[3]]
+    roll, pitch, yaw = euler_from_quaternion(q)
+
+    pose.orientation.z = yaw
+    theta = math.degrees(yaw)
+
 
 if __name__ == '__main__':
     global pub
@@ -1054,6 +968,8 @@ if __name__ == '__main__':
     pub_path = rospy.Publisher('/path', GridCells, queue_size = 10)
     pubtwist = rospy.Publisher('cmd_vel_mux/input/teleop', Twist, None, queue_size = 10)
     pub_traverse = rospy.Publisher('/traversal', GridCells, queue_size=1)
+
+    goalPub = rospy.Publisher('move_base_simple/goal', PoseStamped, queue_size = 10)
 
     #########################MAPPING WITH LASERSCANS##########################################
     laser_sub = rospy.Subscriber('base_scan', OccupancyGrid, readMap)
