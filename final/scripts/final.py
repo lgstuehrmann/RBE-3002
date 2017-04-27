@@ -609,7 +609,7 @@ def publishWaypoints(grid):
         point=Point()
         point = node
         cells.cells.append(point)
-    print "Point in Waypoint: X: %f Y: %f" % (point.x, point.y)
+    #print "Point in Waypoint: X: %f Y: %f" % (point.x, point.y)
     pubway.publish(cells) 
 
 
@@ -996,10 +996,17 @@ def navWithAStar(path):
         #for distance
         desx = nextpose.position.x
         desy = nextpose.position.y
+<<<<<<< HEAD
         thisx = startPosX # startPos.pose.pose.position.x
         thisy = startPosY # startPos.pose.pose.position.y
         deltax = (desx-thisx)
         deltay = (desy-thisy)
+=======
+        thisx = pose.position.x # startPos.pose.pose.position.x
+        thisy = pose.position.y # startPos.pose.pose.position.y
+        deltax = 0.1 * (desx-thisx)
+        deltay = 0.1 * (desy-thisy)
+>>>>>>> 6bd20d657956ac08e6db8fb2b1a10bb9072f6f11
         distancetoTraverse=pow((pow(deltax,2)+pow(deltay,2)),.5)
         #for angle to rotate
         phi=numpy.arctan(desx/desy)
@@ -1093,10 +1100,13 @@ if __name__ == '__main__':
 
             waypoints = getDouglasWaypoints(path)
             waypoints.pop()
+<<<<<<< HEAD
             waypoints.pop()
+=======
+>>>>>>> 6bd20d657956ac08e6db8fb2b1a10bb9072f6f11
             waypoints.reverse()
             publishWaypoints(getDouglasWaypoints(path))#publish waypoints
-            
+            print "List of Waypoints:"
             navWithAStar(path)
             
             print "I should not be moving anymore"    
