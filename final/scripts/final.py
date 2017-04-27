@@ -115,6 +115,9 @@ def readGoal(goal):
     global goalX
     global goalY
     global goalIndex
+    global goalPhi
+    global goalOrientation
+
     goalX= goal.pose.position.x
     goalY= goal.pose.position.y
     
@@ -122,6 +125,12 @@ def readGoal(goal):
     print "Printing goal pose"
     print goal.pose
 
+    goalOrientation = goal.pose.orientation
+    quaternion = (pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w)
+    roll, pitch, yaw = euler_from_quaternion(quaternion)
+
+    pose.orientation.z = yaw
+    goalPhi = math.degrees(yaw)
 # returns the index number given a point in the world
 def getIndexFromPoint(x,y):
     global Point
@@ -1008,6 +1017,7 @@ def navWithAStar(path):
             posePath.remove(newPose)
         except ValueError:
             pass
+
 
 
 def readMap(msg):

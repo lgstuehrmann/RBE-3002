@@ -1012,6 +1012,7 @@ def navWithAStar(path):
         posePath.remove(newPose)
 
 
+
 # This is the program's main function
 if __name__ == '__main__':
 
