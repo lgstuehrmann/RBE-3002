@@ -967,8 +967,8 @@ def navWithAStar(path):
 
     posePath = list()
     initPose = Pose()
-    initPose.position.x = startPosX #startPos.pose.pose.position.x
-    initPose.position.y = startPosY #startPos.pose.pose.position.y
+    initPose.position.x = pose.position.x #startPos.pose.pose.position.x
+    initPose.position.y = pose.position.y #startPos.pose.pose.position.y
 
     initPose.position.z = 0
     initPose.orientation.x = 0
@@ -996,17 +996,14 @@ def navWithAStar(path):
         #for distance
         desx = nextpose.position.x
         desy = nextpose.position.y
-<<<<<<< HEAD
         thisx = startPosX # startPos.pose.pose.position.x
         thisy = startPosY # startPos.pose.pose.position.y
         deltax = (desx-thisx)
         deltay = (desy-thisy)
-=======
         thisx = pose.position.x # startPos.pose.pose.position.x
         thisy = pose.position.y # startPos.pose.pose.position.y
-        deltax = 0.1 * (desx-thisx)
-        deltay = 0.1 * (desy-thisy)
->>>>>>> 6bd20d657956ac08e6db8fb2b1a10bb9072f6f11
+        deltax = (desx-thisx)
+        deltay = (desy-thisy)
         distancetoTraverse=pow((pow(deltax,2)+pow(deltay,2)),.5)
         #for angle to rotate
         phi=numpy.arctan(desx/desy)
@@ -1100,11 +1097,9 @@ if __name__ == '__main__':
 
             waypoints = getDouglasWaypoints(path)
             waypoints.pop()
-<<<<<<< HEAD
-            waypoints.pop()
-=======
->>>>>>> 6bd20d657956ac08e6db8fb2b1a10bb9072f6f11
             waypoints.reverse()
+            waypoints.pop()
+            
             publishWaypoints(getDouglasWaypoints(path))#publish waypoints
             print "List of Waypoints:"
             navWithAStar(path)
