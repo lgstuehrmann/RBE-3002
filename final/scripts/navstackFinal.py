@@ -73,7 +73,6 @@ def mapCallBack(data):
     global resolution
     global offsetX
     global offsetY
-    global nodeList
 
     mapgrid = data
     resolution =data.info.resolution
@@ -82,7 +81,6 @@ def mapCallBack(data):
     height = data.info.height
     offsetX = data.info.origin.position.x
     offsetY = data.info.origin.position.y
-    nodeList = initMap(data)
 
     print data.info
 
@@ -325,11 +323,9 @@ def connectNeighbors(index, eightconnected):
 
     return adjList
 
-def initMap(_mapGrid):
+def initMap(mapData):
 
-    initObs()
     newMap = list()
-    global G
 
     G = list()
 
@@ -339,18 +335,17 @@ def initMap(_mapGrid):
     frontier = list()
 
     for i in range(0, width*height):
-        node = aNode(i,mapData[i],heuristic(i),0,0.0)
+        node = aNode(i,mapData.data[i],heuristic(i),0,0.0)
         G.append(node) 
         frontier.append(0)
+    padObstacles(G)
     
     #TODO Fix expand obs 
     expandedMap = list()
     expandedMap = padObstacles(newMap)
 
-    padObstacles(G)
-    
     print "map created" 
-    return expandedMap
+    return G
 
 
 def calcG(currentG, neighborG):
@@ -774,17 +769,18 @@ def isInMapXY(x, y):
         print "not in map"
         return False
 
-def padObstacles(_inputmap):
-    global robot_size
+def padObstacles(G):
+    
     global pub_obs
     print "adding padding"
 
     obstaclesPadded = 0
+    robotSize = 0.25
     obstacles = list()
     map_obs = list()
 
-    for node in _inputmap:
-        if node.val > 40:
+    for node in G:
+        if node.val > 92:
             map_obs.append(node)
     for obsnode in map_obs:
         obsx = obsnode.point.x
@@ -857,7 +853,7 @@ def padObstacles(_inputmap):
                 pass
 
     publishObs(obstacles, resolution)
-    return _inputmap
+    return G
 
 def expandPath(path):  
     obstacles = list()
@@ -1015,7 +1011,6 @@ def readOdom(event):
 
 
 if __name__ == '__main__':
-    global nodeList
     global pub
     global pose
     pose = Pose()
@@ -1028,7 +1023,7 @@ if __name__ == '__main__':
     startRead = False
     goalRead = False
     global pub_frontier
-    global pub_traversereadGoal
+    global pub_traverse
     global pub_path
     global pubway
     global frontier
@@ -1051,10 +1046,10 @@ if __name__ == '__main__':
 
     rospy.sleep(2)
     #odomSub = rospy.Subscriber('odom', Odometry, readOdom, queue_size = 5)
-    goal_sub = rospy.Subscriber('/goalpose', PoseStamped, readGoal)
-    start_sub = rospy.Subscriber("/odom", PoseStamped, getStart, queue_size=1) #change topic for best results
+    #goal_sub = rospy.Subscriber('/goalpose', PoseStamped, readGoal)
+    start_sub = rospy.Subscriber("/nav_msgs/Odometry", PoseStamped, getStart, queue_size=1) #change topic for best results
     
-    goal_pub = rospy.Publisher("/goalpose", PoseStamped, queue_size=1)
+    goal_pub = rospy.Publisher("/goal_pose", PoseStamped, queue_size=1)
     pub_obs = rospy.Publisher("/obstacles", GridCells, queue_size = 10)
     pub = rospy.Publisher('/mapcheck', GridCells, queue_size = 10) # Publisher for commanding robot motion
     pub_frontier = rospy.Publisher('/frontier', GridCells, queue_size=1)
@@ -1063,7 +1058,8 @@ if __name__ == '__main__':
     pubtwist = rospy.Publisher('cmd_vel_mux/input/teleop', Twist, None, queue_size = 10)
     pub_traverse = rospy.Publisher('/traversal', GridCells, queue_size=1)
 
-    goalPub = rospy.Publisher('move_base_simple/goal', PoseStamped, queue_size = 10)
+    global goalPub
+    goalPub = rospy.Publisher('/move_base_simple/goal', PoseStamped, queue_size = 10)
 
     #########################MAPPING WITH LASERSCANS##########################################
     laser_sub = rospy.Subscriber('base_scan', OccupancyGrid, readMap)
@@ -1078,33 +1074,18 @@ if __name__ == '__main__':
     print "Starting initial Mapping!"
 
     while (1 and not rospy.is_shutdown()):
-        
         publishCells(mapData) #publishing map data every 2 seconds
-<<<<<<< HEAD
 
         readGoal(startPos)
-        thingforFront = initMap(mapgrid)
-        celltogo = getFrontier(nodeList)
-        transformedCell = PoseStamped()
-        transformedCell.position.x = celltogo.position.x
-        transformedCell.position.y = celltogo.position.y
-        transformedCell.orientation.w = 1
-        transformedCell.header.seq = 1
-        transformedCell.header.stamp.secs = 1
-        transformedCell.header.stamp.nsecs = 1
-        transformedCell.header.frame_id = 'map'
-        readGoal(transformedCell)
-
         if (startRead and goalRead):
             scanEnviron()
 
-=======
-        thingforFront = initMap(mapgrid)
-        goalCell = getFrontier(thingforFront)
-        goal_pub.publish(goalCell)#TODO: turn goalCell into something goal_pub can do shit with
-        rospy.sleep(.5)
+            thingforFront = initMap(mapgrid)
+            goalCell = getFrontier(thingforFront)
+            goal_pub.publish(goalCell)#TODO: turn goalCell into something goal_pub can do shit with
+            rospy.sleep(.5)
         if startRead and goalRead:
->>>>>>> f1f1f03d27778eebcd9b9de9ee01bf1ce5d09c94
+
             path = aStar()
             #expandedPath = expandPath(path)
             print "Going to publish path"
