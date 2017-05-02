@@ -35,7 +35,7 @@ class PQueue:
             return heapq.heappop(self._queue)[-1]
 
 class aNode:
-    def __init__(self, index, val, hestimate, gcost, adjacent):
+    def __init__(self, index, val, hestimate, gcost):
         self.index = index
         self.point = getWorldPointFromIndex(index)
         self.val = val
@@ -65,7 +65,7 @@ def noFilter(path): #takes the parsed path & tries to remove unecessary zigzags
         #print "Point in Path: X: %f Y: %f" % (point.x, point.y)
     return returnPath
 
-def mapCallBack(data):
+def mapCallBack_lab4(data):
     global mapData
     global width
     global height
@@ -73,14 +73,16 @@ def mapCallBack(data):
     global resolution
     global offsetX
     global offsetY
+    global nodeList
 
     mapgrid = data
-    resolution =data.info.resolution
+    resolution =data.info.resolution# * 2
     mapData = data.data
-    width = data.info.width
-    height = data.info.height
-    offsetX = data.info.origin.position.x
-    offsetY = data.info.origin.position.y
+    width = data.info.width# /2
+    height = data.info.height# /2
+    offsetX = data.info.origin.position.x + 0.5
+    offsetY = data.info.origin.position.y + 0.5
+    nodeList = initMap(data)
 
     print data.info
 
@@ -115,12 +117,26 @@ def readGoal(goal):
     global goalX
     global goalY
     global goalIndex
-    goalX= goal.position.x
-    goalY= goal.position.y
+    goalX= goal.pose.position.x
+    goalY= goal.pose.position.y
     
     goalIndex = getIndexFromWorldPoint(goalX,goalY)
+
     print "Printing goal pose"
     print goal
+
+def pubGoal(xin, yin):
+
+    goal = PoseStamped()
+    goal.pose.position.x = xin
+    goal.pose.position.y = yin
+    goal.pose.orientation.w = 1
+
+    goal_pub.publish(goal)
+
+    print "Goal Published"
+
+    return goal
 
 
 # returns the index number given a point in the world
@@ -218,10 +234,10 @@ def pointWest(point):
     return output
 
 def pointNorthwest(point): 
-    return pointWest(pointNorth(point))
+    return pointEast(pointNorth(point))
 
 def pointNortheast(point): 
-    return pointEast(pointNorth(point))
+    return pointWest(pointNorth(point))
 
 def pointSouthwest(point):
     return pointWest(pointSouth(point))
@@ -325,6 +341,8 @@ def connectNeighbors(index, eightconnected):
 
 def initMap(mapData):
 
+    initObs()
+
     newMap = list()
 
     G = list()
@@ -335,9 +353,9 @@ def initMap(mapData):
     frontier = list()
 
     for i in range(0, width*height):
-        node = aNode(i,mapData.data[i],heuristic(i),0,0.0)
+        node = aNode(i,mapData.data[i],0,0.0)
         G.append(node) 
-        frontier.append(0)
+        #frontier.append(0)
     padObstacles(G)
     
     #TODO Fix expand obs 
@@ -346,7 +364,6 @@ def initMap(mapData):
 
     print "map created" 
     return G
-
 
 def calcG(currentG, neighborG):
     if (neighborG == 0): 
@@ -367,7 +384,7 @@ def adjCellCheck(current):
             traversal.append(G[index])
     
     publishTraversal(traversal)
-
+"""
 def evalNeighbor(nNode, current): #check to see if in the closed set
     if(nNode not in closedSet): 
         tentative = current.gcost + resolution 
@@ -379,8 +396,21 @@ def evalNeighbor(nNode, current): #check to see if in the closed set
             G[nNode.index].cameFrom = current.index
     else:
         lowestInQ(openSet)
+"""
+def evalNeighbor(nNode, current):
+    if(nNode not in closedSet):  # check if neighbor node is in closedSet - it has already been traveled to
+        tentative = current.gcost + 1.4*resolution #+ current.weight/10 #checks what the potential cost to reach the node is 
+        frontier.append(nNode)   
+        #publishFrontier(frontier)  # for rviz - publish node to frontier 
+        if (nNode not in openSet) or (tentative < nNode.gcost):  # true if node has not already been added to frontier. or true if a previously established cost to reach the node is larger than the tentative cost to reach the node. 
+            nNode.huer = heuristic(nNode.index) # calcute huristic of current node. 
+            nNode.gcost = tentative # set cost to reach node 
+            nNode.f = nNode.gcost + 3*nNode.huer # calc fScore          
+            openSet[nNode.index] = nNode.f   # add/modify occurance of node to the openset 
+            G[nNode.index].cameFrom = current.index
 
-def lowestInQ(nodeSet): 
+
+def lowestInQ(nodeSet):
     costList = list() 
     for node in nodeSet:
         costList.append(node.f)
@@ -399,12 +429,13 @@ def reconPath(current, start):
              
     return total_path
 
-def aStar():
+def aStar(aMap, _goalIndex):
+
+    print "starting a*"
     
     global G
-    G = list()
+    G = aMap
     rospy.sleep(1)
-    initMap(mapgrid)  # add all nodes to grah, link all nodes
 
     global path 
     path = list()
@@ -416,8 +447,9 @@ def aStar():
     traversal = list()
     global frontier
 
-    openSet = list()
-    openSet.append(G[startIndex])        #Add first node to openSet # set priority to distance
+    openSet = heapdict() #list()
+    startIndex = getIndexFromWorldPoint(pose.position.x, pose.position.y) 
+    openSet[startIndex] = G[startIndex].f #openSet.append(G[startIndex])        #Add first node to openSet # set priority to distance
     closedSet = list()         #everything that has been examined
     
     print "start a*"
@@ -428,18 +460,18 @@ def aStar():
     while openSet:  
 
         try:
-
-            i = lowestInQ(openSet) 
+            pop = openSet.popitem()
+            i = pop[0] #lowestInQ(openSet) 
             current = G[i]
             if current in frontier: 
                 frontier.remove(current)
             #print G[i].cameFrom
-            if (current.index == goalIndex): 
+            if (current.index == _goalIndex): 
                 print reconPath(current, G[startIndex])
                                 
                 return reconPath(current, startIndex)
-                pass
-            openSet.remove(current)
+                #pass
+            #openSet.remove(current)
             closedSet.append(current)       
             adjCellList = adjCellCheck(current)
             if adjCellList:
@@ -448,7 +480,6 @@ def aStar():
                         frontier.append(node)
         except KeyboardInterrupt: 
             break
-        publishFrontier(frontier)
     
     print "No route to goal"
 
@@ -487,12 +518,9 @@ def getWaypoints(path): #calculate waypoints from optimal path
 
 def getFrontier(G):
     global frontier
-<<<<<<< HEAD
-    global pose
 
-=======
+    global pose
     global edgelist
->>>>>>> 8209120c53debcd9073442d3c84c22016e6cd031
     frontier = list()
 
     openCells = list()
@@ -524,7 +552,10 @@ def getFrontier(G):
         for node in edge:
             frontiernodes.append(node)
 
-    publishFrontier(frontiernodes)
+
+    #publishFrontier(frontiernodes)
+    publishFrontier(frontier)
+    """
     try:
         for cell in frontier:
             if cell.x>0:
@@ -533,17 +564,42 @@ def getFrontier(G):
                 return cell
     except AttributeError:
         pass
+"""
 
+def destination():
 
+    global frontier
+    global goalX
+    global goalY
 
+    goal = PoseStamped()
+
+    """
     for each in frontier:
-        thisx = pose.pose.position.x
-        thisy = pose.pose.position.y
-        eachx = each.x
-        eachy = each.y
+        thisx = pose.position.x
+        thisy = pose.position.y
+        eachx = each.point.x
+        eachy = each.point.y
         dist = pow(pow(thisx-eachx, 2)+pow(thisy-eachy, 2), .5)
-        if(dist>=.5):
-            return each
+        if(dist>=.2):
+            goalX = eachx
+            goalY = eachy
+            """
+
+    try:
+        goalX = frontier[0].point.x
+        goalY = frontier[0].point.y
+        print "this is my destination"
+    except IndexError:
+        print "was not given destination"
+
+    
+    print goalX
+    print goalY
+
+    return goal
+
+
 
 def listCheck2D(cell, llist):
     for list in llist:
@@ -558,7 +614,7 @@ def findedge(cell, edge, G):
     for neighborindex in connectNeighbors(cell.index, True):
         if G[neighborindex] in frontier and G[neighborindex] not in edge:
             edge.append(G[neighborindex])
-            findedge(G[neigborindex], edge, G)
+            findedge(G[neighborindex], edge, G)
     return edge
 """
 rdp
@@ -754,19 +810,6 @@ def publishPath(grid):
     #print "Point in Path: X: %f Y: %f" % (point.x, point.y)
     pub_path.publish(cells) 
 
-def pubGoal(grid):
-    global goal_pub
-    
-    cells = GridCells()
-    cells.header.frame_id = 'map'
-    cells.cell_width = resolution
-    cells.cell_height = resolution
-
-    for node in grid:
-        point = getWorldPointFromIndex(node.index)
-        cells.cells.append(point)
-    goal_pub.publish(cells)
-
 def publishObs(grid, mapresolution):
     global pub_obs
     k = 0
@@ -779,7 +822,6 @@ def publishObs(grid, mapresolution):
         point = Point()
         point = node.point
         cells.cells.append(point)
-
     pub_obs.publish(cells)
 
 def initObs():
@@ -797,7 +839,7 @@ def isInMapXY(x, y):
         print "not in map"
         return False
 
-def padObstacles(G):
+def padObstacles(_inputmap):
     
     global pub_obs
     print "adding padding"
@@ -807,7 +849,7 @@ def padObstacles(G):
     obstacles = list()
     map_obs = list()
 
-    for node in G:
+    for node in _inputmap:
         if node.val > 92:
             map_obs.append(node)
     for obsnode in map_obs:
@@ -818,27 +860,31 @@ def padObstacles(G):
 
             try:
                 if(isInMapXY(obsx + distance*resolution, obsy)):
+                    print('e')
                     eastindex = getIndexFromWorldPoint(obsx + distance*resolution, obsy)
                     east = _inputmap[eastindex]
                     if(east.weight < obsnode.val):
                         east.weight = obsnode.val
                     obstacles.append(east)
-                    obstaclesPadded = obstaclesPadded + 1
+                    #obstaclesPadded = obstaclesPadded + 1
                 if(isInMapXY(obsx - distance*resolution, obsy)):
+                    print('w')
                     westindex = getIndexFromWorldPoint(obsx - distance*resolution, obsy)
                     west = _inputmap[westindex]
                     if(west.weight < obsnode.val):
                         west.weight = obsnode.val
                     obstacles.append(west)
-                    obstaclesPadded = obstaclesPadded + 1
+                    #obstaclesPadded = obstaclesPadded + 1
                 if(isInMapXY(obsx,obsy + distance*resolution)):
+                    print('n')
                     northindex =  getIndexFromWorldPoint(obsx,obsy + distance*resolution)
                     north = _inputmap[northindex]
                     if(north.weight < obsnode.val):
                         north.weight = obsnode.val
                     obstacles.append(north)
-                    obstaclesPadded = obstaclesPadded + 1
+                    #obstaclesPadded = obstaclesPadded + 1
                 if(isInMapXY(obsx,obsy - distance*resolution)):
+                    print('s')
                     southindex =  getIndexFromWorldPoint(obsx,obsy - distance*resolution)
                     south = _inputmap[southindex]
                     if(south.weight < obsnode.val):
@@ -847,6 +893,7 @@ def padObstacles(G):
                     obstaclesPadded = obstaclesPadded + 1
 
                 if(isInMapXY(obsx+distance*resolution,obsy + distance*resolution)):
+                    print('ne')
                     northeastindex = getIndexFromWorldPoint(obsx+distance*resolution,obsy + distance*resolution)
                     northeast = _inputmap[northeastindex]
                     if(northeast.weight < obsnode.val):
@@ -854,6 +901,7 @@ def padObstacles(G):
                     obstacles.append(northeast)
                     obstaclesPadded = obstaclesPadded + 1
                 if(isInMapXY(obsx-distance*resolution,obsy + distance*resolution)):
+                    print('nw')
                     northwestindex = getIndexFromWorldPoint(obsx-distance*resolution,obsy + distance*resolution)
                     northwest = _inputmap[northwestindex]
                     if(northwest.weight < obsnode.val):
@@ -861,13 +909,16 @@ def padObstacles(G):
                     obstacles.append(northwest)
                     obstaclesPadded = obstaclesPadded + 1
                 if(isInMapXY(obsx+distance*resolution,obsy - distance*resolution)):
+                    print('se')
                     southeastindex = getIndexFromWorldPoint(obsx+distance*resolution,obsy - distance*resolution)
                     southeast = _inputmap[southeastindex]
                     if(southeast.weight < obsnode.val):
+                        print('bish')
                         southeast.weight = obsnode.val
                     obstacles.append(southeast)
                     obstaclesPadded = obstaclesPadded + 1
                 if(isInMapXY(obsx-distance*resolution,obsy - distance*resolution)):
+                    print('sw')
                     southwestindex = getIndexFromWorldPoint(obsx-distance*resolution,obsy - distance*resolution)
                     southwest = _inputmap[southwestindex]
                     if(southwest.weight < obsnode.val):
@@ -878,10 +929,11 @@ def padObstacles(G):
 
 
             except IndexError:
+                print "obstacles were not expanded"
                 pass
 
     publishObs(obstacles, resolution)
-    return G
+    return _inputmap
 
 def expandPath(path):  
     obstacles = list()
@@ -903,6 +955,7 @@ def expandPath(path):
                         west.weight = G[obsnode].val
                     obstacles.append(west)
             except IndexError:
+                print "path was not expanded"
                 pass
     return obstacles
 
@@ -962,6 +1015,8 @@ def navWithAStar(path):
             posePath.remove(newPose)
         except ValueError:
             pass
+
+    goalRead = False
 
 
 def readMap(msg):
@@ -1059,6 +1114,11 @@ if __name__ == '__main__':
     global goal_pub
     global expandedPath
     global mapData
+    global nodeList
+    global pub_obs
+    global goalPub
+    
+
 
     expandedPath = list()
     bumper = 0
@@ -1068,17 +1128,15 @@ if __name__ == '__main__':
     ObservedMap = OccupancyGrid()
 
     rospy.init_node('final')
+    sub = rospy.Subscriber('/map', OccupancyGrid, mapCallBack_lab4)
     ########################SUBS AND PUBS####################################################
-    sub = rospy.Subscriber('/map', OccupancyGrid, mapCallBack)
-
-    global pub_obs
-
+    
     rospy.sleep(2)
     #odomSub = rospy.Subscriber('odom', Odometry, readOdom, queue_size = 5)
     #goal_sub = rospy.Subscriber('/goalpose', PoseStamped, readGoal)
     start_sub = rospy.Subscriber("/nav_msgs/Odometry", PoseStamped, getStart, queue_size=1) #change topic for best results
     
-    goal_pub = rospy.Publisher("/goal_pose", PoseStamped, queue_size=1)
+    #goal_pub = rospy.Publisher("/goalpose", PoseStamped, queue_size=1)
     pub_obs = rospy.Publisher("/obstacles", GridCells, queue_size = 10)
     pub = rospy.Publisher('/mapcheck', GridCells, queue_size = 10) # Publisher for commanding robot motion
     pub_frontier = rospy.Publisher('/frontier', GridCells, queue_size=1)
@@ -1086,9 +1144,14 @@ if __name__ == '__main__':
     pub_path = rospy.Publisher('/path', GridCells, queue_size = 10)
     pubtwist = rospy.Publisher('cmd_vel_mux/input/teleop', Twist, None, queue_size = 10)
     pub_traverse = rospy.Publisher('/traversal', GridCells, queue_size=1)
+    goal_pub = rospy.Publisher('/goalpose', PoseStamped, queue_size=10)
 
     global goalPub
     goalPub = rospy.Publisher('/move_base_simple/goal', PoseStamped, queue_size = 10)
+
+    rospy.sleep(2)
+
+    
 
     #########################MAPPING WITH LASERSCANS##########################################
     laser_sub = rospy.Subscriber('base_scan', OccupancyGrid, readMap)
@@ -1101,49 +1164,67 @@ if __name__ == '__main__':
     rospy.sleep(1)
 
     print "Starting initial Mapping!"
-    goal = PoseStamped()
-    goal.pose.position.x = 2.5
-    goal.pose.position.y = 2.5
-    goal.pose.orientation.w = 1
-    goal_pub.publish(goal)
+    
+    #goal = PoseStamped()
+    #goal.pose.position.x = 2.5
+    #goal.pose.position.y = 2.5
+    #goal.pose.orientation.w = 1
+    rospy.sleep(2)
+    
+
+
     while (1 and not rospy.is_shutdown()):
         publishCells(mapData) #publishing map data every 2 seconds
 
-<<<<<<< HEAD
-        readGoal(startPos)
-        if (startRead and goalRead):
-            scanEnviron()
+        getFrontier(nodeList)
 
-            thingforFront = initMap(mapgrid)
-            goalCell = getFrontier(thingforFront)
-            goal_pub.publish(goalCell)#TODO: turn goalCell into something goal_pub can do shit with
-            rospy.sleep(.5)
-=======
->>>>>>> 8209120c53debcd9073442d3c84c22016e6cd031
-        if startRead and goalRead:
+        print "picking a destination"
+        destination()
 
-            path = aStar()
+        goalRead = True
+        goalIndex = getIndexFromWorldPoint(goalX, goalY)
+
+
+        
+        if goalRead:
+
+
+            print "goal read"
+            newMap = initMap(mapgrid)
+
+            print "getting frontier"
+            getFrontier(nodeList)
+            rospy.sleep(2)
+
+            print "Publishing waypoints"
+            pubGoal(goalX, goalY)
+
+            path = aStar(newMap, goalIndex)
             #expandedPath = expandPath(path)
             print "Going to publish path"
             publishPath(noFilter(path))
-            print "Publishing waypoints"
+            
 
             waypoints = getDouglasWaypoints(path)
             waypoints.pop()
             waypoints.reverse()
             publishWaypoints(getDouglasWaypoints(path))#publish waypoints
+
+            print "getting frontier"
+            getFrontier(nodeList)
+
             print "List of Waypoints:"
             print waypoints
             navWithAStar(path)
             
-            print "I should not be moving anymore"    
+            while not goalRead:
+                print "waiting for new goal"
 
             print "Done!"
             goalRead = False
 
         rospy.sleep(2)
-<<<<<<< HEAD
+
 
         
-=======
->>>>>>> 8209120c53debcd9073442d3c84c22016e6cd031
+
